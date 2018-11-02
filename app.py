@@ -42,7 +42,6 @@ cursor.execute("SELECT email from User")
 users = cursor.fetchall()
 
 def getUserList():
-	cursor = conn.cursor()
 	cursor.execute("SELECT email from User") 
 	return cursor.fetchall()
 
@@ -86,7 +85,6 @@ def login():
 			   '''
 	#The request method is POST (page is recieving data)
 	email = flask.request.form['email']
-	cursor = conn.cursor()
 	#check if email is registered
 	if cursor.execute("SELECT password FROM User WHERE email = '{0}'".format(email)):
 		data = cursor.fetchall()
@@ -124,7 +122,6 @@ def register_user():
 	except:
 		print("couldn't find all tokens") #this prints to shell, end users will not see this (all print statements go to shell)
 		return flask.redirect(flask.url_for('register'))
-	cursor = conn.cursor()
 	test = isEmailUnique(email)
 	if test:
 		print(cursor.execute("INSERT INTO User (email, password) VALUES ('{0}', '{1}')".format(email, password)))
@@ -138,8 +135,6 @@ def register_user():
 		print("couldn't find all tokens")
 		return flask.redirect(flask.url_for('register'))
 
-
-
 '''
 A new page looks like this:
 @app.route('new_page_name')
@@ -147,25 +142,29 @@ def new_page_function():
 	return new_page_html
 '''
 
-def getUsersPhotos(uid):
-	cursor = conn.cursor()
-	cursor.execute("SELECT imgdata, photo_id, caption FROM Photo WHERE user_id = '{0}'".format(uid))
-	return cursor.fetchall() #NOTE list of tuples, [(imgdata, pid), ...]
-
 def getUserIdFromEmail(email):
-	cursor = conn.cursor()
-	cursor.execute("SELECT user_id FROM User WHERE email = '{0}'".format(email))
-	return cursor.fetchone()[0]
+	return_id = -1
+	try: #tries the query
+		cursor.execute("SELECT user_id FROM User WHERE email = '{0}'".format(email))
+		return_id = cursor.fetchone()[0]
+	except Exception as e:
+		logging.debug("Get user id exception!")
+		return -1
+	return return_id
 
 def isEmailUnique(email):
 	#use this to check if a email has already been registered
-	cursor = conn.cursor()
 	if cursor.execute("SELECT email FROM User WHERE email = '{0}'".format(email)): 
 		#this means there are greater than zero entries with that email
 		return False
 	else:
 		return True
 #end login code
+
+# code for users and friends begins
+def getUsersPhotos(uid):
+	cursor.execute("SELECT imgdata, photo_id, caption FROM Photo WHERE user_id = '{0}'".format(uid))
+	return cursor.fetchall() #NOTE list of tuples, [(imgdata, pid), ...]
 
 @app.route('/profile')
 @flask_login.login_required
@@ -187,7 +186,6 @@ def upload_file():
 		caption = request.form.get('caption')
 		print(caption)
 		photo_data = base64.standard_b64encode(imgfile.read())
-		cursor = conn.cursor()
 		cursor.execute("INSERT INTO Photo (imgdata, user_id, caption) VALUES ('{0}', '{1}', '{2}' )".format(photo_data, uid, caption))
 		conn.commit()
 		return render_template('hello.html', name=flask_login.current_user.id, message='Photo uploaded!', photos=getUsersPhotos(uid) )
@@ -195,45 +193,58 @@ def upload_file():
 	else:
 		return render_template('upload.html')
 #end photo uploading code 
+def execute_query(query):
+	cursor.execute(query)
+	conn.commit()
 
 #defines a function for extracting the data from a query
 def extractData(query):
-	conn = mysql.connect()
-	cursor = conn.cursor()
 	cursor.execute(query)
+	logging.debug("Query {0} executed".format(query))
 	data = cursor.fetchall() # fetches all rows of the query
-	cursor.close()
-	conn.close()
 	return data
 
-@app.route('/users', methods=['GET', 'POST'])
+@app.route('/friend', methods=['GET', 'POST'])
 @flask_login.login_required
-def get_users():
+def find_users():
 	email = flask_login.current_user.id
+	uid = getUserIdFromEmail(flask_login.current_user.id)
 	if request.method == 'GET': # if request is get (user navigated to the URL)
 		# optional: change fname lname to be not null and display those
-		uid = getUserIdFromEmail(flask_login.current_user.id)
 		data = extractData("SELECT email FROM User WHERE user_id <> {0};".format(uid))
-		return render_template('friend.html', data=data, name=email)
+		friends = extractData("SELECT email FROM (SELECT * FROM Friendship WHERE follower_user_id={0}) temp JOIN User ON temp.followed_user_id = User.user_id;".format(uid)) 
+		return render_template('friend.html', name=email, friends=friends,data=data)
     
 	else: #if request is post (user posted some information)
+		message = "Nothing happened! Try again"
 
 		#get the user searched from the 'USER_EMAIL' row of the form
 		query_email = request.form['USER_EMAIL']
-		query = "SELECT email FROM User WHERE email = \"{0}\"".format(query_email)
-		try: #tries the query
-			data = extractData(query)
-			return render_template("friend.html", data=data, query=query, name=email)
-		except Exception as e:
-			print(e)
-			return render_template("friend.html", query=query, error=e)
-        
+		query_id = getUserIdFromEmail(query_email)
+		if (query_id == -1):
+			message = "User {0} not found. Try again".format(query_email)
+		elif query_email == email:
+			message = "Nice try, you can't add yourself!"
+		else:
+			query = "INSERT INTO Friendship VALUES({0}, {1});".format(uid, query_id)
 
+			try: #tries the query
+				execute_query(query)
+				message = "Success! User {0} was added!".format(query_email)
+			except Exception as e:
+				logging.debug(e)
+				if ("1062" in str(e)):
+					message = "You're already friends with {0}!".format(query_email)
+				else:
+					return render_template("friend.html", query=query, error=e)
+			
+
+		return render_template("friend.html", name=email, note=message)
+		
 #default page  
 @app.route("/", methods=['GET'])
 def hello():
 	return render_template('hello.html', message='Welcome to Photoshare')
-
 
 if __name__ == "__main__":
 	#this is invoked when in the shell  you run 
