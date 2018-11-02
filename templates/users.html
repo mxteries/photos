@@ -1,0 +1,57 @@
+<!-- Author: Craig Einstein -->
+<!-- This is how to write a comment in HTML! -->
+
+<html>
+
+  <head>
+    <title>Get a friend!</title> <!-- title of the webpage -->
+  </head>
+
+  <body>
+    <!-- name/email is required -->    
+    <h1>Welcome {{name}}!</h1>
+
+    <form action="/users" method="POST"> <!-- action is where to send information -->
+      <p> Send a friend request to a user by email: <input type="text" name="USER_EMAIL" /> </p>
+      <input type="submit" name="Search" /> <!-- Execute the action -->
+    </form>
+
+    {% if data and query %} <!-- if statements using Jinja -->
+    
+    <h4>Here is the user we found:</h4> <!-- prints the query as h4 -->
+
+    <ul> <!-- creates an unordered list -->
+      {% for row in data %} <!-- Jinja for loop -->
+      <li>
+        {% for item in row %}
+        <!-- print the item in brackets -->
+        {{item}} <a href='/friend'>Add friend</a>
+
+        {% endfor %} <!-- have to define the end for ifs and fors! -->
+      </li>
+      {% endfor %}
+    </ul>
+
+    {% elif data %} <!-- else if only data, show all users -->
+    <h4>Here are all the users!</h4>
+
+    <ul> <!-- creates an unordered list -->
+      {% for row in data %} <!-- Jinja for loop -->
+      <li>
+        {% for item in row %}
+        [{{item}}] <!-- print the item in brackets -->
+        {% endfor %} <!-- have to define the end for ifs and fors! -->
+      </li>
+      {% endfor %}
+    </ul>
+
+    {% elif query and error %} <!-- in case of an error! (also to show elif is valid)-->
+    <p>There was an issue with the query "{{query}}"</p><br>
+    <p>The error was "{{error}}"</p><br>
+    {% endif %}
+    
+  </body>
+  
+</html>
+    
+    

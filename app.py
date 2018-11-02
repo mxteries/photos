@@ -17,10 +17,13 @@ import flask_login
 #for image uploading
 from werkzeug import secure_filename
 import os, base64
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 mysql = MySQL()
 app = Flask(__name__)
-app.secret_key = 'super secret string'  # Change this!
+app.secret_key = 'potatoes'  # Change this!
 
 #These will need to be changed according to your creditionals
 app.config['MYSQL_DATABASE_USER'] = 'david' # david for me, but usually change this to "root"
@@ -35,12 +38,12 @@ login_manager.init_app(app)
 
 conn = mysql.connect()
 cursor = conn.cursor()
-cursor.execute("SELECT email from Users") 
+cursor.execute("SELECT email from User") 
 users = cursor.fetchall()
 
 def getUserList():
 	cursor = conn.cursor()
-	cursor.execute("SELECT email from Users") 
+	cursor.execute("SELECT email from User") 
 	return cursor.fetchall()
 
 class User(flask_login.UserMixin):
@@ -64,19 +67,11 @@ def request_loader(request):
 	user = User()
 	user.id = email
 	cursor = mysql.connect().cursor()
-	cursor.execute("SELECT password FROM Users WHERE email = '{0}'".format(email))
+	cursor.execute("SELECT password FROM User WHERE email = '{0}'".format(email))
 	data = cursor.fetchall()
 	pwd = str(data[0][0] )
 	user.is_authenticated = request.form['password'] == pwd
 	return user
-
-
-'''
-A new page looks like this:
-@app.route('new_page_name')
-def new_page_function():
-	return new_page_html
-'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -93,7 +88,7 @@ def login():
 	email = flask.request.form['email']
 	cursor = conn.cursor()
 	#check if email is registered
-	if cursor.execute("SELECT password FROM Users WHERE email = '{0}'".format(email)):
+	if cursor.execute("SELECT password FROM User WHERE email = '{0}'".format(email)):
 		data = cursor.fetchall()
 		pwd = str(data[0][0] )
 		if flask.request.form['password'] == pwd:
@@ -130,9 +125,9 @@ def register_user():
 		print("couldn't find all tokens") #this prints to shell, end users will not see this (all print statements go to shell)
 		return flask.redirect(flask.url_for('register'))
 	cursor = conn.cursor()
-	test =  isEmailUnique(email)
+	test = isEmailUnique(email)
 	if test:
-		print(cursor.execute("INSERT INTO Users (email, password) VALUES ('{0}', '{1}')".format(email, password)))
+		print(cursor.execute("INSERT INTO User (email, password) VALUES ('{0}', '{1}')".format(email, password)))
 		conn.commit()
 		#log user in
 		user = User()
@@ -143,20 +138,29 @@ def register_user():
 		print("couldn't find all tokens")
 		return flask.redirect(flask.url_for('register'))
 
+
+
+'''
+A new page looks like this:
+@app.route('new_page_name')
+def new_page_function():
+	return new_page_html
+'''
+
 def getUsersPhotos(uid):
 	cursor = conn.cursor()
-	cursor.execute("SELECT imgdata, picture_id, caption FROM Pictures WHERE user_id = '{0}'".format(uid))
+	cursor.execute("SELECT imgdata, photo_id, caption FROM Photo WHERE user_id = '{0}'".format(uid))
 	return cursor.fetchall() #NOTE list of tuples, [(imgdata, pid), ...]
 
 def getUserIdFromEmail(email):
 	cursor = conn.cursor()
-	cursor.execute("SELECT user_id  FROM Users WHERE email = '{0}'".format(email))
+	cursor.execute("SELECT user_id FROM User WHERE email = '{0}'".format(email))
 	return cursor.fetchone()[0]
 
 def isEmailUnique(email):
 	#use this to check if a email has already been registered
 	cursor = conn.cursor()
-	if cursor.execute("SELECT email  FROM Users WHERE email = '{0}'".format(email)): 
+	if cursor.execute("SELECT email FROM User WHERE email = '{0}'".format(email)): 
 		#this means there are greater than zero entries with that email
 		return False
 	else:
@@ -166,7 +170,7 @@ def isEmailUnique(email):
 @app.route('/profile')
 @flask_login.login_required
 def protected():
-	return render_template('hello.html', name=flask_login.current_user.id, message="Here's your profile")
+	return render_template('profile.html', name=flask_login.current_user.id)
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -184,14 +188,46 @@ def upload_file():
 		print(caption)
 		photo_data = base64.standard_b64encode(imgfile.read())
 		cursor = conn.cursor()
-		cursor.execute("INSERT INTO Pictures (imgdata, user_id, caption) VALUES ('{0}', '{1}', '{2}' )".format(photo_data,uid, caption))
+		cursor.execute("INSERT INTO Photo (imgdata, user_id, caption) VALUES ('{0}', '{1}', '{2}' )".format(photo_data, uid, caption))
 		conn.commit()
 		return render_template('hello.html', name=flask_login.current_user.id, message='Photo uploaded!', photos=getUsersPhotos(uid) )
-	#The method is GET so we return a  HTML form to upload the a photo.
+	#The method is GET so we return a HTML form to choose an album to upload the photo.
 	else:
 		return render_template('upload.html')
 #end photo uploading code 
 
+#defines a function for extracting the data from a query
+def extractData(query):
+	conn = mysql.connect()
+	cursor = conn.cursor()
+	cursor.execute(query)
+	data = cursor.fetchall() # fetches all rows of the query
+	cursor.close()
+	conn.close()
+	return data
+
+@app.route('/users', methods=['GET', 'POST'])
+@flask_login.login_required
+def get_users():
+	email = flask_login.current_user.id
+	if request.method == 'GET': # if request is get (user navigated to the URL)
+		# optional: change fname lname to be not null and display those
+		uid = getUserIdFromEmail(flask_login.current_user.id)
+		data = extractData("SELECT email FROM User WHERE user_id <> {0};".format(uid))
+		return render_template('friend.html', data=data, name=email)
+    
+	else: #if request is post (user posted some information)
+
+		#get the user searched from the 'USER_EMAIL' row of the form
+		query_email = request.form['USER_EMAIL']
+		query = "SELECT email FROM User WHERE email = \"{0}\"".format(query_email)
+		try: #tries the query
+			data = extractData(query)
+			return render_template("friend.html", data=data, query=query, name=email)
+		except Exception as e:
+			print(e)
+			return render_template("friend.html", query=query, error=e)
+        
 
 #default page  
 @app.route("/", methods=['GET'])
@@ -203,3 +239,9 @@ if __name__ == "__main__":
 	#this is invoked when in the shell  you run 
 	#$ python app.py 
 	app.run(port=5000, debug=True)
+'''
+A new page looks like this:
+@app.route('new_page_name')
+def new_page_function():
+	return new_page_html
+'''
