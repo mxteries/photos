@@ -32,14 +32,19 @@ app.config['MYSQL_DATABASE_DB'] = 'photoshare'
 app.config['MYSQL_DATABASE_HOST'] = 'localhost'
 mysql.init_app(app)
 
-#begin code used for login
 login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
 
 conn = mysql.connect()
 cursor = conn.cursor()
-cursor.execute("SELECT email from User") 
-users = cursor.fetchall()
+
+# template docs http://jinja.pocoo.org/docs/2.10/templates/#variables
+
+# the way users are currently defined is very spaghetti. if there is time to refactor:
+# https://flask-login.readthedocs.io/en/latest/#configuring-your-application
+# https://realpython.com/using-flask-login-for-user-management-with-flask/
+
+# not only that, user.id is the email, rather than the user_id
 
 def getUserList():
 	cursor.execute("SELECT email from User") 
@@ -156,15 +161,13 @@ def extractData(query):
 	data = cursor.fetchall() # fetches all rows of the query
 	return data
 
-
-
 def getUserIdFromEmail(email):
 	return_id = -1
 	try: #tries the query
 		cursor.execute("SELECT user_id FROM User WHERE email = '{0}'".format(email))
 		return_id = cursor.fetchone()[0]
 	except Exception as e:
-		logging.debug("Get user id exception!")
+		logging.debug("Get user id exception{0}!".format(e))
 		return -1
 	return return_id
 
@@ -174,7 +177,7 @@ def getEmailFromUserID(uid):
 		cursor.execute("SELECT email FROM User WHERE user_id = '{0}'".format(uid))
 		return_email = cursor.fetchone()[0]
 	except Exception as e:
-		logging.debug("Get email exception!")
+		logging.debug("Get email exception {0}!".format(e))
 		return -1
 	return return_email
 
@@ -198,19 +201,21 @@ ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
 
-@app.route('/profile/<uid>')
+@app.route('/<uid>')
 def profile(uid):
 	email = getEmailFromUserID(uid)
+	if (email == -1):
+		return render_template('message.html', message="The user you searched for was not found")
+	my_profile = False
 
 	if (flask_login.current_user.is_authenticated):
+		# check if this is the logged in user's profile
 		logged_in_user = flask_login.current_user.id
-		user_id = getUserIdFromEmail(logged_in_user)
+		if (logged_in_user == email):
+			my_profile = True
 		logging.debug(logged_in_user)
-		return render_template('hello.html', uid=user_id, user=logged_in_user)
-	else:
-		return render_template('hello.html', user=None)
 
-	return render_template('profile.html', name=email)
+	return render_template('profile.html', name=email, my_profile=my_profile)
 
 @app.route('/upload', methods=['GET', 'POST'])
 @flask_login.login_required
@@ -235,9 +240,13 @@ def find_users():
 	uid = getUserIdFromEmail(flask_login.current_user.id)
 	if request.method == 'GET': # if request is get (user navigated to the URL)
 		# optional: change fname lname to be not null and display those
-		data = extractData("SELECT email FROM User WHERE user_id <> {0};".format(uid))
-		friends = extractData("SELECT email FROM (SELECT * FROM Friendship WHERE follower_user_id={0}) temp JOIN User ON temp.followed_user_id = User.user_id;".format(uid)) 
-		return render_template('friend.html', name=email, friends=friends,data=data)
+		data = extractData("SELECT user_id, email FROM User WHERE user_id <> {0};".format(uid))
+		# friends is all the ppl current_user is following
+		friends = extractData("SELECT user_id, email FROM (SELECT * FROM Friendship WHERE follower_user_id={0}) temp JOIN User ON temp.followed_user_id = User.user_id;".format(uid)) 
+		
+		logging.debug(friends)
+		logging.debug(data)
+		return render_template('friend.html', name=email, friends=friends, data=data)
     
 	else: #if request is post (user posted some information)
 		message = "Nothing happened! Try again"

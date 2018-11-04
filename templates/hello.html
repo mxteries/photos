@@ -20,16 +20,16 @@
   <p> Have an account? <a href="{{ url_for('login') }}">Login!</a></p>
 {% else %}
   <h1> Hello {{user}}!!</h1>
-  <p>Go to <a href="{{ url_for('profile', uid=user_id) }}">profile?</a></p>
+  <p>Go to <a href="{{ url_for('profile', uid=uid) }}">profile?</a></p>
   <ul>
-    <li>Want to upload photos?<a href="{{ url_for('upload_file') }}">Go to your albums!</a></li>
+    <li>Want to upload photos? <a href="{{ url_for('upload_file') }}">Go to your albums!</a></li>
     <li><a href="{{ url_for('find_users') }}">Show friends!</a></li>
     <li><a href="{{ url_for('logout') }}">Logout</a></li>
   </ul>
 
   <p>
       insert you may also like here <br>
-
+      Heres when the default options start:
   </p>
 {% endif %}
 

@@ -18,37 +18,37 @@
 
     {% if note %} <!-- if statements using Jinja -->
     <h4>{{note}}</h4>
-    <li><a href='/friend'>Show list of users</a> </li> 
+    <li><a href="{{ url_for('find_users') }}">Show list of users</a> </li> 
 
-    {% elif data and friends %} <!-- else if only data, show all users -->
+    {% elif friends %}
     <h4>Here are all your friends:</h4>
     <ul> <!-- creates an unordered list -->
-      {% for row in data %} <!-- Jinja for loop -->
-      <li>
-        {% for item in row %}
-        [{{item}}] <!-- print the item in brackets -->
-        {% endfor %} <!-- have to define the end for ifs and fors! -->
-      </li>
-      {% endfor %}
-    </ul>
-    <h4>Here are all the users:</h4>
-
-    <ul> <!-- creates an unordered list -->
-      {% for row in data %} <!-- Jinja for loop -->
-      <li>
-        {% for item in row %}
-        [{{item}}] <!-- print the item in brackets -->
-        {% endfor %} <!-- have to define the end for ifs and fors! -->
-      </li>
-      {% endfor %}
+      {% for (uid, email) in friends %} <!-- Jinja for loop -->
+        <li>
+          <a href="{{ url_for('profile', uid=uid) }}">[{{email}}]</a>
+        </li>
+      {% endfor %} <!-- have to define the end for ifs and fors! -->
     </ul>
 
     {% elif query and error %} <!-- in case of an error! (also to show elif is valid)-->
     <p>There was an issue with the query "{{query}}"</p><br>
     <p>The error was "{{error}}"</p><br>
     {% endif %}
+
+    {% if data %}
+    <h4>Here are all the users! Feel free to add someone!</h4>
+    <ul> <!-- creates an unordered list -->
+      {% for (uid, email) in data %}
+        <li>
+          <a href="{{ url_for('profile', uid=uid) }}">[{{email}}]</a>
+        </li>
+      {% endfor %} <!-- have to define the end for ifs and fors! -->
+    </ul>
+    {% endif %}
     <br>
-    <a href='/'>Home</a>
+    <a href="{{ url_for('home') }}">Home</a>
+
+    
   </body>
   
 </html>
