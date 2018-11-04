@@ -3,26 +3,19 @@
 <!doctype html>
 <title>Photoshare</title>
 
-<!--
-{% if photos %}
-<h2>Here's your photos</h2>
-    <ul>
-    {% for photo in photos %}
-        <li>{{photo[2]}}<br>
-        <img src='data:image/png;base64, {{photo[0]}}'/></li>
-    {% endfor %}
-    </ul>
-{% endif %}
--->
-
 {% if user is none %}
   <h1>You are anonymously browsing.</h1> 
-  <p> Have an account? <a href="{{ url_for('login') }}">Login!</a></p>
+  <p> 
+    Have an account? <a href="{{ url_for('login') }}">Login</a>
+    <br>
+    Want one? <a href="{{ url_for('register_user') }}">Register</a>
+  
+  </p>
 {% else %}
   <h1> Hello {{user}}!!</h1>
   <p>Go to <a href="{{ url_for('profile', uid=uid) }}">profile?</a></p>
   <ul>
-    <li>Want to upload photos? <a href="{{ url_for('upload_file') }}">Go to your albums!</a></li>
+    <li>Want to upload photos? <a href="{{ url_for('album', uid=uid) }}">Go to your albums!</a></li>
     <li><a href="{{ url_for('find_users') }}">Show friends!</a></li>
     <li><a href="{{ url_for('logout') }}">Logout</a></li>
   </ul>

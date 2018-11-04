@@ -1,7 +1,7 @@
 <!doctype html>
 <title> Unauthorized</title>
 <h1> Yikes, looks like you need to <a href='/login'>login</a></h1>
-<h1> or <a href='/register'>make an account</a></h1>
+<h1> or <a href="{{ url_for('register_user') }}">make an account</a></h1>
 
 <a href="{{ url_for('home') }}">Home</a>
 
