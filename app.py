@@ -86,14 +86,16 @@ def login():
 	#The request method is POST (page is recieving data)
 	email = flask.request.form['email']
 	#check if email is registered
-	if cursor.execute("SELECT password FROM User WHERE email = '{0}'".format(email)):
+	if cursor.execute("SELECT user_id, password FROM User WHERE email = '{0}'".format(email)):
 		data = cursor.fetchall()
-		pwd = str(data[0][0] )
+		user_id = str(data[0][0] )
+		pwd = str(data[0][1] )
+
 		if flask.request.form['password'] == pwd:
 			user = User()
 			user.id = email
 			flask_login.login_user(user) #okay login in user
-			return flask.redirect(flask.url_for('protected')) #protected is a function defined in this file
+			return flask.redirect(flask.url_for('profile', uid=user_id)) #profile is a function defined in this file
 
 	#information did not match
 	return "<a href='/login'>Try again</a>\
@@ -102,7 +104,7 @@ def login():
 @app.route('/logout')
 def logout():
 	flask_login.logout_user()
-	return render_template('hello.html', message='Logged out') 
+	return render_template('message.html', message='Logged out') 
 
 @login_manager.unauthorized_handler
 def unauthorized_handler():
@@ -130,7 +132,7 @@ def register_user():
 		user = User()
 		user.id = email
 		flask_login.login_user(user)
-		return render_template('hello.html', name=email, message='Account Created!')
+		return render_template('message.html', message='Account Created!')
 	else:
 		print("couldn't find all tokens")
 		return flask.redirect(flask.url_for('register'))
@@ -142,6 +144,20 @@ def new_page_function():
 	return new_page_html
 '''
 
+#end photo uploading code 
+def execute_query(query):
+	cursor.execute(query)
+	conn.commit()
+
+#defines a function for extracting the data from a query
+def extractData(query):
+	cursor.execute(query)
+	logging.debug("Query {0} executed".format(query))
+	data = cursor.fetchall() # fetches all rows of the query
+	return data
+
+
+
 def getUserIdFromEmail(email):
 	return_id = -1
 	try: #tries the query
@@ -151,6 +167,16 @@ def getUserIdFromEmail(email):
 		logging.debug("Get user id exception!")
 		return -1
 	return return_id
+
+def getEmailFromUserID(uid):
+	return_email = -1
+	try: #tries the query
+		cursor.execute("SELECT email FROM User WHERE user_id = '{0}'".format(uid))
+		return_email = cursor.fetchone()[0]
+	except Exception as e:
+		logging.debug("Get email exception!")
+		return -1
+	return return_email
 
 def isEmailUnique(email):
 	#use this to check if a email has already been registered
@@ -163,19 +189,28 @@ def isEmailUnique(email):
 
 # code for users and friends begins
 def getUsersPhotos(uid):
-	cursor.execute("SELECT imgdata, photo_id, caption FROM Photo WHERE user_id = '{0}'".format(uid))
-	return cursor.fetchall() #NOTE list of tuples, [(imgdata, pid), ...]
-
-@app.route('/profile')
-@flask_login.login_required
-def protected():
-	return render_template('profile.html', name=flask_login.current_user.id)
+	photos = extractData("SELECT imgdata, photo_id, caption FROM Photo WHERE user_id = '{0}'".format(uid))
+	return photos #note: list of tuples, [(imgdata, pid), ...]
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
+
+@app.route('/profile/<uid>')
+def profile(uid):
+	email = getEmailFromUserID(uid)
+
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user = flask_login.current_user.id
+		user_id = getUserIdFromEmail(logged_in_user)
+		logging.debug(logged_in_user)
+		return render_template('hello.html', uid=user_id, user=logged_in_user)
+	else:
+		return render_template('hello.html', user=None)
+
+	return render_template('profile.html', name=email)
 
 @app.route('/upload', methods=['GET', 'POST'])
 @flask_login.login_required
@@ -192,17 +227,6 @@ def upload_file():
 	#The method is GET so we return a HTML form to choose an album to upload the photo.
 	else:
 		return render_template('upload.html')
-#end photo uploading code 
-def execute_query(query):
-	cursor.execute(query)
-	conn.commit()
-
-#defines a function for extracting the data from a query
-def extractData(query):
-	cursor.execute(query)
-	logging.debug("Query {0} executed".format(query))
-	data = cursor.fetchall() # fetches all rows of the query
-	return data
 
 @app.route('/friend', methods=['GET', 'POST'])
 @flask_login.login_required
@@ -241,11 +265,26 @@ def find_users():
 
 		return render_template("friend.html", name=email, note=message)
 		
+# @app.route('/album/<uid>/<aid>', methods=['GET', 'POST'])
+# @flask_login.login_required
+# def album(uid, aid):
+# 	email = flask_login.current_user.id
+# 	my_uid = getUserIdFromEmail(flask_login.current_user.id)
+    
+# 	else: #if request is post (user posted some information)
+# 		return render_template('friend.html', name=email, friends=friends,data=data)
+
 #default page  
 @app.route("/", methods=['GET'])
-def hello():
-	return render_template('hello.html', message='Welcome to Photoshare')
-
+def home():
+	
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user = flask_login.current_user.id
+		user_id = getUserIdFromEmail(logged_in_user)
+		logging.debug(logged_in_user)
+		return render_template('hello.html', uid=user_id, user=logged_in_user)
+	else:
+		return render_template('hello.html', user=None)
 if __name__ == "__main__":
 	#this is invoked when in the shell  you run 
 	#$ python app.py 

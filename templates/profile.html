@@ -1,9 +1,12 @@
 <!-- author ben lawson (balawson@bu.edu) -->
 <!doctype html>
-<h4>My Profile</h4>
+
+<!-- probably want to differentiate between the logged in 
+user's profile and somone elses profile
+do that when you implement profiles by uid-->
 <title>Photoshare</title>
 {% if name %}
-  <h1>Hello {{ name }}!</h1>
+  <h1>{{ name }}'s Profile</h1>
 {% endif %}
 
 {% if photos %}
@@ -17,7 +20,7 @@
 {% endif %}
 
 <ul>
-<li><a href='/friend'>Friend/Follow someone!</a> </li> 
+<li><a href="{{ url_for('find_users') }}">Friend/Follow someone!</a> </li> 
 <li><a href='/upload'>Upload a photo</a> </li> 
 <li><a href='/logout'>Logout</a></li>
 <li><a href='/'>Home</a></li>
