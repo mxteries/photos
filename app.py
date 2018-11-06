@@ -18,7 +18,7 @@ import flask_login
 from werkzeug.utils import secure_filename
 import os, base64
 import logging
-
+from datetime import date
 logging.basicConfig(level=logging.DEBUG)
 #logging.disable(logging.INFO)
 
@@ -169,6 +169,10 @@ def extractData(query):
 	data = cursor.fetchall() # fetches all rows of the query
 	return data
 
+# 2018-11-06
+def get_date():
+	return str(date.today())
+
 def getUserIdFromEmail(email):
 	return_id = -1
 	try: #tries the query
@@ -224,6 +228,17 @@ def get_pid_from_path(path):
 	tupled_pid = extractData("SELECT photo_id FROM Photo WHERE photo_path= {0};".format(path))
 	pid = tupled_pid[0][0]
 	return pid
+
+def get_uid_from_pid(pid):
+	tupled_uid = extractData("SELECT user_id FROM Photo NATURAL JOIN User_Album WHERE photo_id = {0};".format(pid))
+	uid = tupled_uid[0][0]
+	return uid
+
+def get_photo_comments(pid):
+	tupled_comments = extractData("SELECT email, text, date FROM Photo_Comment where photo_id = {0}".format(pid))
+	# replace mysqls NULL with anonymous
+	tupled_comments = [("Anonymous" if email is None else email, text, date) for (email, text, date) in tupled_comments]
+	return tupled_comments # ((bob, hi, 2018-01-12), (ted, bye, 2018-5-4), ...)
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -391,26 +406,58 @@ def upload_file(uid, aid):
 
 
 # View a photo to leave a like or comment
-@app.route('/<uid>/album/<aid>/<pid>')
-def view_photo(uid, aid, pid):
-	email = getEmailFromUserID(uid)
-	if (email == -1):
-		return render_template('message.html', message="The user you searched for was not found")
-	
+@app.route('/photo/<pid>')
+def view_photo(pid):
+
+	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
 	user = "Anonymous"
 	myself = False
+
+	# check if this is the logged in user's photo
 	if (flask_login.current_user.is_authenticated):
-	# check if this is the logged in user's profile albums
 		logged_in_user = flask_login.current_user.id
-		if (logged_in_user == email):
+		user = logged_in_user # if this is my photo, grant access controls. else, just tell them who they are
+		if (logged_in_user == photo_owner):
 			myself = True
-			user = email
 
 	photo, caption = get_a_photo(pid)
 	tags = get_photo_tags(pid)
-	logging.debug("Viewing user {0}'s photo: {1} with tags {2}".format(user, photo, tags))
+	comments = get_photo_comments(pid)
+	logging.debug("Viewing {0}'s photo: {1} as user {2} with tags {3} and comments {4}".format(photo_owner, user, photo, tags, comments))
 	
-	return render_template('a_photo.html', myself=myself, user=user, photo=photo, uid=uid, aid=aid, pid=pid, caption=caption, tags=tags)
+	return render_template('a_photo.html', myself=myself, user=user, owner=photo_owner, photo=photo, pid=pid, caption=caption, comments=comments, tags=tags)
+
+
+#myself cant comment on his photo
+@app.route("/photo/<pid>/comment", methods=['GET', 'POST'])
+def comment(pid):
+	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
+	commenter = "NULL"
+	myself = False
+
+	# check if this is my photo, and set who's commenting
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user = flask_login.current_user.id
+		commenter = '"' + logged_in_user + '"'
+		if (logged_in_user == photo_owner):
+			myself = True
+
+	if request.method == 'POST':
+		some_comment = request.form['USER_COMMENT']
+		# if this is my comment
+		logging.debug("User {0} tries to post on photo belonging to {1}".format(commenter, photo_owner))
+		if myself:
+			return render_template('message.html', message="You can't comment on your own photo. Blame the requirements")
+		else:
+			try:
+				query = 'INSERT INTO Photo_Comment(photo_id, text, date, email) values ({0}, "{1}", "{2}", {3});'
+				query = query.format(pid, some_comment, get_date(), commenter)
+				execute_query(query)
+			except Exception as e:
+				logging.warning(str(e))
+				return render_template("message.html", query=query, error=e)
+
+		return redirect(url_for('view_photo', pid=pid))
 
 
 def insert_tags(tag_str, pid):
@@ -421,17 +468,17 @@ def insert_tags(tag_str, pid):
 			query = "INSERT INTO Photo_Tag VALUES('{0}', {1});".format(tag, pid)
 			execute_query(query)
 
-@app.route('/<uid>/album/<aid>/<pid>/tag', methods=['POST'])
+@app.route('/photo/<pid>/tag', methods=['POST'])
 def handle_insert_tags(uid, aid, pid):
 	if request.method == 'POST':
 		tags = request.form['USER_TAGS']
 		insert_tags(tags, pid)
-		return redirect(url_for('view_photo', uid=uid, aid=aid, pid=pid))
+		return redirect(url_for('view_photo', pid=pid))
 
 # view a "virtual album" of all photos tagged with <tag>
 @app.route("/tag/view/<tag>")
 def tagged_photos(tag):
-	query = "SELECT photo_path FROM Photo_Tag NATURAL JOIN Photo WHERE word = \"{0}\";".format(tag)
+	query = "SELECT photo_path, photo_id FROM Photo_Tag NATURAL JOIN Photo WHERE word = \"{0}\";".format(tag)
 	photos = extractData(query)
 	logging.debug("photos looks like: {0}".format(photos))
 	return render_template("tag.html", tag=tag, photos=photos)
@@ -454,7 +501,7 @@ def display_searched_tags():
 		tag_group += tag
 	tag_group += ")"
 	logging.debug(tag_group)
-	query = "SELECT photo_path FROM (SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged natural join Photo;".format(tag_group, num_tags)
+	query = "SELECT photo_path, photo_id FROM (SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged natural join Photo;".format(tag_group, num_tags)
 	photos = extractData(query)
 
 	logging.debug(photos)

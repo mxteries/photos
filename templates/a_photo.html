@@ -4,6 +4,7 @@
     <!--
         myself: to grant actions like tag and delete
         user: to know whos commenting
+        owner: whose photo this is
         photo: path to the photo
         uid, aid: to redirect
         pid: to insert tags
@@ -23,13 +24,15 @@
         </form> 
 
     </p>
+    {% else %}
+    <h3>{{ owner }}'s Photo</h3>
     {% endif %}
 
     <p> 
         <img src="{{ photo }}" alt="User Image" >
         <br>
         {{caption}}
-        <br>
+        <br><br>
         Tags:
         {% if tags %}
             <ul>
@@ -42,22 +45,24 @@
             <br><br>
         {% endif %}
         {% if comments %}
+            Comments:
             <ul>
-                {% for (user, comment) in comments %}
+               
+                {% for (user, comment, date) in comments %}
                 <li>
                     {{user}}: {{comment}}
+                    <br>
+                    {{date}}
                 </li>
                 {% endfor %}
             </ul>
             <br>
         {% endif %}
         <br>
-        <form action="{{ url_for('home') }}" method="POST">
+        <form action="{{ url_for('comment', pid=pid) }}" method="POST">
             <p> Leave a comment (as {{user}}) <input type="text" name="USER_COMMENT" /> </p>
             <input type="submit" value="Comment" />
         </form> 
-        <br>
-        <a href="{{ url_for('album', uid=uid) }}">Back to albums</a>
         <br>
         <a href="{{ url_for('home') }}">Go home</a>
     </p>

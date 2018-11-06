@@ -43,13 +43,24 @@ CREATE TABLE Photo (
   PRIMARY KEY (photo_id)
 );
 
+
+/* here we put email as a attribute.
+normally, we couldn't because there comments can belong to no one
+but we will generalize this "no one" as a pretend user "Anonymous"
+*/
 CREATE TABLE Photo_Comment (
   comment_id int4 AUTO_INCREMENT,
   photo_id int4 NOT NULL,
+  email varchar(255),
   text varchar(280),
   date char(10),
   FOREIGN KEY (photo_id) REFERENCES Photo(photo_id) ON DELETE CASCADE,
+  FOREIGN KEY (email) REFERENCES User(email) ON DELETE CASCADE,
   PRIMARY KEY (comment_id)
+);
+
+CREATE TABLE User_Comment(
+  
 );
 
 CREATE TABLE Tag (

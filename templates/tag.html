@@ -19,11 +19,11 @@
         <h3>Photos with the tag "{{tag}}":</h3>
         {% if photos %}
             <ul>
-                {% for (path,) in photos %}
+                {% for (path, pid) in photos %}
                 <li>
                     <img src="{{ path }}" alt="User Image">
                     <br>
-                    <a href="{{ url_for('home') }}">View Photo</a>
+                    <a href="{{ url_for('view_photo', pid=pid) }}">View Photo</a>
                 </li>
                 {% endfor %}
             </ul>
