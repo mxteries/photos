@@ -20,7 +20,7 @@ import os, base64
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-logging.disable(logging.INFO)
+#logging.disable(logging.INFO)
 
 mysql = MySQL()
 app = Flask(__name__)
@@ -208,7 +208,7 @@ def getAlbumsFromUid(uid):
 # serve up images from *the* static directory
 def getAlbumPhotos(aid):
 	photos = extractData("SELECT photo_path, caption FROM Photo WHERE album_id = '{0}'".format(aid))
-	photos = [(os.path.join('/static', path), caption) for (path, caption) in photos]
+	#photos = [(os.path.join('/static', path), caption) for (path, caption) in photos]
 	return photos # note: list of tuples, [(fullpath, caption), ...]
 
 #begin photo uploading code
@@ -316,7 +316,7 @@ def album(uid):
 # How this works:
 # every photo is stored in mysql as <email>/<photoname>
 # this route will locate that photo from the static folder, and serve it up in html
-@app.route('/<uid>/album/<aid>')
+@app.route('/<uid>/album/<aid>',  methods=['GET', 'POST'])
 def list_photos(uid, aid):
 	email = getEmailFromUserID(uid)
 	if (email == -1):
@@ -335,6 +335,27 @@ def list_photos(uid, aid):
 		
 		return render_template('photo.html', photos=album_photos, aid=aid, uid=uid, myself=myself, user=email)
 
+# # View a photo to leave a like or comment
+# @app.route('/<uid>/album/<aid>/<pid>')
+# def view_photo(uid, aid, pid):
+# 	email = getEmailFromUserID(uid)
+# 	if (email == -1):
+# 		return render_template('message.html', message="The user you searched for was not found")
+
+# 	if request.method == 'GET':
+# 		myself = False
+# 		if (flask_login.current_user.is_authenticated):
+# 		# check if this is the logged in user's profile albums
+# 			logged_in_user = flask_login.current_user.id
+# 			if (logged_in_user == email):
+# 				myself = True
+
+# 		album_photos = getAlbumPhotos(aid) # ((path1, caption), (path2, caption))
+# 		logging.debug("All photos of user {0}: {1}".format(uid, album_photos))
+		
+# 		return render_template('photo.html', photos=album_photos, aid=aid, uid=uid, myself=myself, user=email)
+
+
 # upload a photo to an album
 # how it works:
 # every photo gets stored in photoshare/static/<email>/<photoname>
@@ -352,10 +373,11 @@ def upload_file(uid, aid):
 			photo_filepath = os.path.join(getEmailFromUserID(uid), filename)
 			fullpath = os.path.join(app.config['UPLOAD_FOLDER'], photo_filepath)
 			photofile.save(fullpath)
-
 			logging.debug("Uploaded {0} to {1}".format(filename, fullpath))
+
+			mysql_photo_path = os.path.join('/static', photo_filepath) # what gets stored in mysql
 			try:
-				query = "INSERT INTO Photo (photo_path, album_id, caption) VALUES ('{0}', ' {1}', '{2}');".format(photo_filepath, aid, caption)
+				query = "INSERT INTO Photo (photo_path, album_id, caption) VALUES ('{0}', ' {1}', '{2}');".format(mysql_photo_path, aid, caption)
 				execute_query(query)
 				message = "Success!! Photo Uploaded!"
 			except Exception as e:
@@ -371,6 +393,38 @@ def upload_file(uid, aid):
 	#The method is GET so we return a HTML form to choose an album to upload the photo.
 	else:
 		return render_template('upload.html', aid=aid, uid=uid)
+
+@app.route("/tag/<tag>")
+def tagged_photos(tag):
+	query = "SELECT photo_path FROM Photo_Tag NATURAL JOIN Photo WHERE word = \"{0}\";".format(tag)
+	photos = extractData(query)
+	logging.debug("photos looks like: {0}".format(photos))
+	return render_template("tag.html", tag=tag, photos=photos)
+
+@app.route("/tag", methods=['POST'])
+def handle_tag_request():
+	# user searched for photos that have all of (x) tags
+	# oh my goodness this query is so godlike, 
+	# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
+
+	tags = request.form['SEARCH_TAG'].split()
+	num_tags = len(tags)
+	
+	tag_group = "("
+	for index, tag in enumerate(tags):
+		if (index < (num_tags - 1)):
+			tag = '"' + tag + '"' + ","
+		else:
+			tag = '"' + tag + '"'
+		tag_group += tag
+	tag_group += ")"
+	logging.debug(tag_group)
+	query = "SELECT photo_path FROM (SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged natural join Photo;".format(tag_group, num_tags)
+	photos = extractData(query)
+
+	logging.debug(photos)
+	return render_template("tag.html", tag=request.form['SEARCH_TAG'], photos=photos)
+
 
 #default page  
 @app.route("/", methods=['GET'])

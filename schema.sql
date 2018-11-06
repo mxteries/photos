@@ -57,12 +57,13 @@ CREATE TABLE Tag (
   PRIMARY KEY(word)
 );
 
-/* tag to photo is many to many now, no participation constraints
+/* a tag must belong to at least one photo
 */
 CREATE TABLE Photo_Tag (
   word varchar(20),
   photo_id int4,
-  CONSTRAINT Pk_Photo_Tag PRIMARY KEY (word, photo_id)
+  CONSTRAINT Pk_Photo_Tag PRIMARY KEY (word, photo_id),
+  FOREIGN KEY (photo_id) REFERENCES Photo(photo_id) ON DELETE CASCADE
 );
 
 

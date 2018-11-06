@@ -1,0 +1,55 @@
+<!doctype html>
+<title>Photo</title>
+<body>
+    {% if query and error %} <!-- in case of an error! (also to show elif is valid)-->
+        <p>There was an issue with the query "{{query}}"</p><br>
+        <p>The error was "{{error}}"</p><br>
+    {% else %}
+        <!--
+            tag - the name of the tag
+            show_my_photos - switches between the user's photos and all photos
+            photos - photos to display
+            tags - linked tags to list
+        -->
+        <form action="{{ url_for('handle_tag_request') }}" method="POST"> <!-- action is where to send information -->
+            <p> Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /> </p>
+            <input type="submit" name="Search" /> <!-- Execute the action -->
+        </form>
+
+        <h3>Photos with the tag "{{tag}}":</h3>
+        {% if photos %}
+            <ul>
+                {% for (path,) in photos %}
+                <li>
+                    <img src="{{ path }}" alt="User Image">
+                    <br>
+                    <a href="{{ url_for('home') }}">View Photo</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% elif tags %}
+            <ul>
+                {% for tag in tags %}
+                <li>
+                    <a href="{{ url_for('tagged_photos', tag=tag) }}">[{{tag}}]</a>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+        <h4>Nothing was found!</h4>
+        {% endif %}
+            
+        
+        
+        {% if show_my_photos %}
+            <a href="{{ url_for('home') }}">Show only my photos</a>
+        {% else %}
+            <a href="{{ url_for('home') }}">Show all photos</a>
+        {% endif %}
+        <p>
+            <a href="{{ url_for('home') }}">Home</a>
+            <br>
+            <a href="{{ url_for('home') }}">View a list of the most popular tags</a>
+        </p>
+    {% endif %}
+</body>

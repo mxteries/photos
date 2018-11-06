@@ -1,7 +1,7 @@
 <!doctype html>
 <title>Album</title>
 <body>
-    {% if query and error %} <!-- in case of an error! (also to show elif is valid)-->
+    {% if query and error %}
         <p>There was an issue with the query "{{query}}"</p><br>
         <p>The error was "{{error}}"</p><br>
     {% else %}
@@ -10,7 +10,7 @@
         <h3>Hi {{ user }}, here are your albums</h3>
         <form action="{{ url_for('album', uid=uid) }}" method="POST"> <!-- action is where to send information -->
             <p> Create a new album! Enter a name: <input type="text" name="USER_ALBUM" /> </p>
-            <input type="submit" name="Search" /> <!-- Execute the action -->
+            <input type="submit" name="Search" />
         </form>
         {% else %}
         <h3>{{ user }}'s albums</h3>
