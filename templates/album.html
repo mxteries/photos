@@ -24,7 +24,8 @@
         <ul>
             {% for (aid, name) in albums %}
                 <li>
-                    <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">[{{name}}]</a>
+                    <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">{{name}}</a>
+                    <a href="{{ url_for('home') }}">[Delete]</a>
                 </li>
             {% endfor %}
         </ul>

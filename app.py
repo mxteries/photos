@@ -207,9 +207,23 @@ def getAlbumsFromUid(uid):
 # get all photos from an album
 # serve up images from *the* static directory
 def getAlbumPhotos(aid):
-	photos = extractData("SELECT photo_path, caption FROM Photo WHERE album_id = '{0}'".format(aid))
-	#photos = [(os.path.join('/static', path), caption) for (path, caption) in photos]
-	return photos # note: list of tuples, [(fullpath, caption), ...]
+	photos = extractData("SELECT photo_path, caption, photo_id FROM Photo WHERE album_id = '{0}'".format(aid))
+	return photos # note: list of tuples, [(fullpath, caption, pid), ...]
+
+# return a photo and its caption
+def get_a_photo(pid):
+	photo = extractData("SELECT photo_path, caption FROM Photo WHERE photo_id = {0}".format(pid))
+	return photo[0]
+
+def get_photo_tags(pid):
+	tupled_tags = extractData("SELECT word FROM Photo_Tag WHERE photo_id = {0};".format(pid))
+	tags = [tag for (tag,) in tupled_tags]
+	return tags
+
+def get_pid_from_path(path):
+	tupled_pid = extractData("SELECT photo_id FROM Photo WHERE photo_path= {0};".format(path))
+	pid = tupled_pid[0][0]
+	return pid
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -330,31 +344,10 @@ def list_photos(uid, aid):
 			if (logged_in_user == email):
 				myself = True
 
-		album_photos = getAlbumPhotos(aid) # ((path1, caption), (path2, caption))
+		album_photos = getAlbumPhotos(aid) # ((path1, caption, pid1), (path2, caption, pid2))
 		logging.debug("All photos of user {0}: {1}".format(uid, album_photos))
 		
 		return render_template('photo.html', photos=album_photos, aid=aid, uid=uid, myself=myself, user=email)
-
-# # View a photo to leave a like or comment
-# @app.route('/<uid>/album/<aid>/<pid>')
-# def view_photo(uid, aid, pid):
-# 	email = getEmailFromUserID(uid)
-# 	if (email == -1):
-# 		return render_template('message.html', message="The user you searched for was not found")
-
-# 	if request.method == 'GET':
-# 		myself = False
-# 		if (flask_login.current_user.is_authenticated):
-# 		# check if this is the logged in user's profile albums
-# 			logged_in_user = flask_login.current_user.id
-# 			if (logged_in_user == email):
-# 				myself = True
-
-# 		album_photos = getAlbumPhotos(aid) # ((path1, caption), (path2, caption))
-# 		logging.debug("All photos of user {0}: {1}".format(uid, album_photos))
-		
-# 		return render_template('photo.html', photos=album_photos, aid=aid, uid=uid, myself=myself, user=email)
-
 
 # upload a photo to an album
 # how it works:
@@ -367,6 +360,7 @@ def upload_file(uid, aid):
 	if request.method == 'POST':
 		photofile = request.files['photo']
 		caption = request.form.get('caption')
+		tags = request.form.get('tag')
 		message = "Nothing happened, try again"
 		if photofile and allowed_file(photofile.filename):
 			filename = secure_filename(photofile.filename)
@@ -379,6 +373,7 @@ def upload_file(uid, aid):
 			try:
 				query = "INSERT INTO Photo (photo_path, album_id, caption) VALUES ('{0}', ' {1}', '{2}');".format(mysql_photo_path, aid, caption)
 				execute_query(query)
+				insert_tags(tags, get_pid_from_path(mysql_photo_path))
 				message = "Success!! Photo Uploaded!"
 			except Exception as e:
 				logging.warning(e)
@@ -394,7 +389,47 @@ def upload_file(uid, aid):
 	else:
 		return render_template('upload.html', aid=aid, uid=uid)
 
-@app.route("/tag/<tag>")
+
+# View a photo to leave a like or comment
+@app.route('/<uid>/album/<aid>/<pid>')
+def view_photo(uid, aid, pid):
+	email = getEmailFromUserID(uid)
+	if (email == -1):
+		return render_template('message.html', message="The user you searched for was not found")
+	
+	user = "Anonymous"
+	myself = False
+	if (flask_login.current_user.is_authenticated):
+	# check if this is the logged in user's profile albums
+		logged_in_user = flask_login.current_user.id
+		if (logged_in_user == email):
+			myself = True
+			user = email
+
+	photo, caption = get_a_photo(pid)
+	tags = get_photo_tags(pid)
+	logging.debug("Viewing user {0}'s photo: {1} with tags {2}".format(user, photo, tags))
+	
+	return render_template('a_photo.html', myself=myself, user=user, photo=photo, uid=uid, aid=aid, pid=pid, caption=caption, tags=tags)
+
+
+def insert_tags(tag_str, pid):
+	tags = tag_str.split()
+	if tags: # if tag_str isnt "" or " "
+		for tag in tags:
+			logging.debug("Associating tag {0} with photo pid {1}".format(tag, pid))
+			query = "INSERT INTO Photo_Tag VALUES('{0}', {1});".format(tag, pid)
+			execute_query(query)
+
+@app.route('/<uid>/album/<aid>/<pid>/tag', methods=['POST'])
+def handle_insert_tags(uid, aid, pid):
+	if request.method == 'POST':
+		tags = request.form['USER_TAGS']
+		insert_tags(tags, pid)
+		return redirect(url_for('view_photo', uid=uid, aid=aid, pid=pid))
+
+# view a "virtual album" of all photos tagged with <tag>
+@app.route("/tag/view/<tag>")
 def tagged_photos(tag):
 	query = "SELECT photo_path FROM Photo_Tag NATURAL JOIN Photo WHERE word = \"{0}\";".format(tag)
 	photos = extractData(query)
@@ -402,7 +437,7 @@ def tagged_photos(tag):
 	return render_template("tag.html", tag=tag, photos=photos)
 
 @app.route("/tag", methods=['POST'])
-def handle_tag_request():
+def display_searched_tags():
 	# user searched for photos that have all of (x) tags
 	# oh my goodness this query is so godlike, 
 	# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags

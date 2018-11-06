@@ -1,0 +1,65 @@
+<!doctype html>
+<title>Photo</title>
+<body>
+    <!--
+        myself: to grant actions like tag and delete
+        user: to know whos commenting
+        photo: path to the photo
+        uid, aid: to redirect
+        pid: to insert tags
+        caption: yeah
+        tags: list of tags
+        comments: all comments sorted by date and who said them
+    -->
+    {% if myself %}
+    <h3>Hi {{ user }}, here is your photo</h3>
+    <h4>User Controls:</h4>
+    <p>
+        <a href="{{ url_for('home') }}">[Delete this photo]</a>
+        <br>
+        <form action="{{ url_for('handle_insert_tags', uid=uid, aid=aid, pid=pid) }}" method="POST">
+            <p> Add tag(s) <input type="text" name="USER_TAGS" /> </p>
+            <input type="submit" value="Add" />
+        </form> 
+
+    </p>
+    {% endif %}
+
+    <p> 
+        <img src="{{ photo }}" alt="User Image" >
+        <br>
+        {{caption}}
+        <br>
+        Tags:
+        {% if tags %}
+            <ul>
+                {% for tag in tags %}
+                <li>
+                    <a href="{{ url_for('tagged_photos', tag=tag) }}">[{{tag}}]</a>
+                </li>
+                {% endfor %}
+            </ul>
+            <br><br>
+        {% endif %}
+        {% if comments %}
+            <ul>
+                {% for (user, comment) in comments %}
+                <li>
+                    {{user}}: {{comment}}
+                </li>
+                {% endfor %}
+            </ul>
+            <br>
+        {% endif %}
+        <br>
+        <form action="{{ url_for('home') }}" method="POST">
+            <p> Leave a comment (as {{user}}) <input type="text" name="USER_COMMENT" /> </p>
+            <input type="submit" value="Comment" />
+        </form> 
+        <br>
+        <a href="{{ url_for('album', uid=uid) }}">Back to albums</a>
+        <br>
+        <a href="{{ url_for('home') }}">Go home</a>
+    </p>
+
+</body>

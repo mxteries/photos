@@ -11,9 +11,9 @@
             photos - photos to display
             tags - linked tags to list
         -->
-        <form action="{{ url_for('handle_tag_request') }}" method="POST"> <!-- action is where to send information -->
+        <form action="{{ url_for('display_searched_tags') }}" method="POST"> <!-- action is where to send information -->
             <p> Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /> </p>
-            <input type="submit" name="Search" /> <!-- Execute the action -->
+            <input type="submit" value="Search" /> <!-- Execute the action -->
         </form>
 
         <h3>Photos with the tag "{{tag}}":</h3>

@@ -14,21 +14,25 @@
     {% endif %}
 
     {% if photos %}
-    <ul>
-        {% for (path, caption) in photos %}
-        <li>
+    <p>
+        {% for (path, caption, pid) in photos %}
             <img src="{{ path }}" alt="User Image" >
             <br>
             {{caption}}
-        </li>
+            <br>
+            <a href="{{ url_for('view_photo', uid=uid, aid=aid, pid=pid) }}">[View Photo]</a>
+            <br>
+            <a href="{{ url_for('home') }}">[Delete Photo]</a>
+            <br><br><br>
         {% endfor %}
-    </ul>
+    </p>
     {% else %}
     <h4>No photos were found!</h4>
     {% endif %}
 
     <p>
         <a href="{{ url_for('album', uid=uid) }}">Back to albums</a>
+        <br>
         <a href="{{ url_for('home') }}">Go home</a>
     </p>
 
