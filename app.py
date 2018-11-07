@@ -561,8 +561,21 @@ def display_searched_tags():
 				return render_template('unauth.html') 
 
 	photos = extractData(query)
-	logging.debug(photos, my_photo_toggle)
 	return render_template("tag.html", tag=request.args['SEARCH_TAG'], photos=photos, show_my_photos=my_photo_toggle)
+
+# given a photo, deleles a tag from the photo
+@app.route('/photo/<pid>/tag/delete/<word>', methods=['POST'])
+@flask_login.login_required
+def delete_tag(pid, word):
+	photo_owner = get_uid_from_pid(pid)
+	message = "You are not authorized to do that"
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user_id = getUserIdFromEmail(flask_login.current_user.id)
+		logging.debug("User {0} is trying to delete photo {1}'s tag {2}".format(logged_in_user_id, pid, word))
+		if logged_in_user_id == photo_owner:
+			query = "DELETE FROM Photo_Tag where word = '{0}' and photo_id = {1};".format(word, pid)
+			execute_query(query)
+	return redirect(url_for('view_photo', pid=pid))
 
 
 #default page  
