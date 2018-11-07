@@ -11,30 +11,19 @@
             photos - photos to display
             tags - linked tags to list
         -->
-        <form action="{{ url_for('display_searched_tags') }}" method="POST"> <!-- action is where to send information -->
+        <form action="{{ url_for('display_searched_tags') }}" method="GET"> <!-- action is where to send information -->
             <p> Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /> </p>
             <input type="submit" value="Search" /> <!-- Execute the action -->
         </form>
 
         <h3>Photos with the tag "{{tag}}":</h3>
         {% if photos %}
-            <ul>
-                {% for (path, pid) in photos %}
-                <li>
-                    <img src="{{ path }}" alt="User Image">
-                    <br>
-                    <a href="{{ url_for('view_photo', pid=pid) }}">View Photo</a>
-                </li>
-                {% endfor %}
-            </ul>
-        {% elif tags %}
-            <ul>
-                {% for tag in tags %}
-                <li>
-                    <a href="{{ url_for('tagged_photos', tag=tag) }}">[{{tag}}]</a>
-                </li>
-                {% endfor %}
-            </ul>
+            {% for (path, pid) in photos %}
+                <a href="{{ url_for('view_photo', pid=pid) }}">
+                    <img src="{{ path }}" alt="User Image" >
+                </a>
+                <br><br><br>
+            {% endfor %}
         {% else %}
         <h4>Nothing was found!</h4>
         {% endif %}
@@ -42,9 +31,17 @@
         
         
         {% if show_my_photos %}
-            <a href="{{ url_for('home') }}">Show only my photos</a>
+            <form action="{{ url_for('display_searched_tags') }}" method="GET">
+                <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
+                <input type="hidden" name="TOGGLE" value="ALL PHOTOS">
+                <input type="submit" value="Show all photos" />
+            </form>
         {% else %}
-            <a href="{{ url_for('home') }}">Show all photos</a>
+            <form action="{{ url_for('display_searched_tags') }}" method="GET">
+                <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
+                <input type="hidden" name="TOGGLE" value="MY PHOTOS">
+                <input type="submit" value="Show my photos" />
+            </form>
         {% endif %}
         <p>
             <a href="{{ url_for('home') }}">Home</a>

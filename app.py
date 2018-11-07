@@ -518,15 +518,19 @@ def tagged_photos(tag):
 	logging.debug("photos looks like: {0}".format(photos))
 	return render_template("tag.html", tag=tag, photos=photos)
 
-@app.route("/tag", methods=['POST'])
+# view a "virtual album" of all photos that contain a number of tags 
+# specified in the url query ie request.args
+# if request.args has a toggle to show only "my" photos
+# we display only the photos belonging to the logged in user
+@app.route("/tag", methods=['GET'])
 def display_searched_tags():
 	# user searched for photos that have all of (x) tags
 	# oh my goodness this query is so godlike, 
 	# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
+	logging.debug(request.args)
+	tags = request.args['SEARCH_TAG'].split()
 
-	tags = request.form['SEARCH_TAG'].split()
 	num_tags = len(tags)
-	
 	tag_group = "("
 	for index, tag in enumerate(tags):
 		if (index < (num_tags - 1)):
@@ -536,11 +540,29 @@ def display_searched_tags():
 		tag_group += tag
 	tag_group += ")"
 	logging.debug(tag_group)
-	query = "SELECT photo_path, photo_id FROM (SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged natural join Photo;".format(tag_group, num_tags)
-	photos = extractData(query)
+	query = ("SELECT photo_path, photo_id FROM " + 
+		"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " + 
+		"natural join Photo;")
+	query = query.format(tag_group, num_tags)
+	
+	my_photo_toggle = False
+	# now if we want to only see OUR photos, have to modify query a bit
+	if 'TOGGLE' in request.args:
+		if request.args['TOGGLE'] == "MY PHOTOS":
+			if (flask_login.current_user.is_authenticated):
+				my_photo_toggle = True
+				logged_in_user = getUserIdFromEmail(flask_login.current_user.id)
+				query = ("SELECT photo_path, photo_id FROM " +
+				"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " +
+				"natural join Photo natural join User_Album " +
+				"where user_id = {2};")
+				query = query.format(tag_group, num_tags, logged_in_user)
+			else: 
+				return render_template('unauth.html') 
 
-	logging.debug(photos)
-	return render_template("tag.html", tag=request.form['SEARCH_TAG'], photos=photos)
+	photos = extractData(query)
+	logging.debug(photos, my_photo_toggle)
+	return render_template("tag.html", tag=request.args['SEARCH_TAG'], photos=photos, show_my_photos=my_photo_toggle)
 
 
 #default page  
