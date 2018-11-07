@@ -9,14 +9,14 @@
         {% if myself %}
         <h3>Hi {{ user }}, here are your albums</h3>
         <form action="{{ url_for('album', uid=uid) }}" method="POST"> <!-- action is where to send information -->
-            <p> Create a new album! Enter a name: <input type="text" name="USER_ALBUM" /> </p>
-            <input type="submit" name="Search" />
+            Create a new album! Enter a name: <input type="text" name="USER_ALBUM" />
+            <input type="submit" value="Create!" />
         </form>
         {% else %}
         <h3>{{ user }}'s albums</h3>
         {% endif %}
 
-        {% if message %} <!-- if statements using Jinja -->
+        {% if message %}
         <h4>{{message}}</h4>
         {% endif %}
 
@@ -25,7 +25,11 @@
             {% for (aid, name) in albums %}
                 <li>
                     <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">{{name}}</a>
-                    <a href="{{ url_for('home') }}">[Delete]</a>
+                    {% if myself %}
+                    <form action="{{ url_for('delete_album', aid=aid) }}" method="POST"> <!-- send POST request thru a button by omitting text field-->
+                            <input type="submit" value="Delete Album" />
+                    </form>
+                    {% endif %}
                 </li>
             {% endfor %}
         </ul>

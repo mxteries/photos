@@ -26,8 +26,12 @@
   </p>
 {% endif %}
 
+<form action="{{ url_for('display_searched_tags') }}" method="POST">
+    <p> Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /> </p>
+    <input type="submit" value="Search" /> <!-- Execute the action -->
+</form>
+
 <ul>
-  <li><a href="{{ url_for('home') }}">Search for all photos by tag</a></li>
   <li><a href="{{ url_for('home') }}">Home</a></li>
 </ul>
 <p>

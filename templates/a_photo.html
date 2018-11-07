@@ -6,7 +6,6 @@
         user: to know whos commenting
         owner: whose photo this is
         photo: path to the photo
-        uid, aid: to redirect
         pid: to insert tags
         caption: yeah
         tags: list of tags
@@ -16,13 +15,14 @@
     <h3>Hi {{ user }}, here is your photo</h3>
     <h4>User Controls:</h4>
     <p>
-        <a href="{{ url_for('home') }}">[Delete this photo]</a>
-        <br>
-        <form action="{{ url_for('handle_insert_tags', uid=uid, aid=aid, pid=pid) }}" method="POST">
-            <p> Add tag(s) <input type="text" name="USER_TAGS" /> </p>
+        <form action="{{ url_for('handle_insert_tags', pid=pid) }}" method="POST">
+            Add tag(s) <input type="text" name="USER_TAGS" />
             <input type="submit" value="Add" />
-        </form> 
-
+        </form>
+        <br>
+        <form action="{{ url_for('delete_photo', pid=pid) }}" method="POST">
+            <input type="submit" value="Delete Photo" />
+        </form>
     </p>
     {% else %}
     <h3>{{ owner }}'s Photo</h3>
@@ -42,12 +42,10 @@
                 </li>
                 {% endfor %}
             </ul>
-            <br><br>
         {% endif %}
         {% if comments %}
             Comments:
             <ul>
-               
                 {% for (user, comment, date) in comments %}
                 <li>
                     {{user}}: {{comment}}

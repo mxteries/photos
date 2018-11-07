@@ -1,6 +1,7 @@
 ######################################
 # author ben lawson <balawson@bu.edu> 
 # Edited by: Craig Einstein <einstein@bu.edu>
+# Perfected by: David Shen <dshen1@bu.edu>
 ######################################
 # Some code adapted from 
 # CodeHandBook at http://codehandbook.org/python-web-application-development-using-flask-and-mysql/
@@ -225,12 +226,17 @@ def get_photo_tags(pid):
 	return tags
 
 def get_pid_from_path(path):
-	tupled_pid = extractData("SELECT photo_id FROM Photo WHERE photo_path= {0};".format(path))
+	tupled_pid = extractData("SELECT photo_id FROM Photo WHERE photo_path = '{0}';".format(path))
 	pid = tupled_pid[0][0]
 	return pid
 
 def get_uid_from_pid(pid):
 	tupled_uid = extractData("SELECT user_id FROM Photo NATURAL JOIN User_Album WHERE photo_id = {0};".format(pid))
+	uid = tupled_uid[0][0]
+	return uid
+
+def get_uid_from_aid(aid):
+	tupled_uid = extractData("SELECT user_id FROM User_Album NATURAL JOIN User WHERE album_id = {0};".format(aid))
 	uid = tupled_uid[0][0]
 	return uid
 
@@ -342,10 +348,25 @@ def album(uid):
 		user_albums = getAlbumsFromUid(uid)
 		return render_template("album.html", uid=uid, user=getEmailFromUserID(uid), albums=user_albums, message=message, myself=True)
 
+# todo, if aid doesn't exist, handle that exception
+@app.route('/album/<aid>/delete', methods=['POST'])
+@flask_login.login_required
+def delete_album(aid):
+	album_owner = get_uid_from_aid(aid)
+	message = "You are not authorized to do that"
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user_id = getUserIdFromEmail(flask_login.current_user.id)
+		logging.debug("User {0} is trying to delete album {1}".format(logged_in_user_id, aid))
+		if logged_in_user_id == album_owner:
+			query = "DELETE FROM User_Album where album_id = {0};".format(aid)
+			execute_query(query)
+			message = "Album deleted."
+	return render_template('message.html', message=message)
+
 # How this works:
 # every photo is stored in mysql as <email>/<photoname>
 # this route will locate that photo from the static folder, and serve it up in html
-@app.route('/<uid>/album/<aid>',  methods=['GET', 'POST'])
+@app.route('/<uid>/album/<aid>',  methods=['GET'])
 def list_photos(uid, aid):
 	email = getEmailFromUserID(uid)
 	if (email == -1):
@@ -427,9 +448,23 @@ def view_photo(pid):
 	
 	return render_template('a_photo.html', myself=myself, user=user, owner=photo_owner, photo=photo, pid=pid, caption=caption, comments=comments, tags=tags)
 
+# todo, if pid doesn't exist, handle that exception
+@app.route('/photo/<pid>/delete', methods=['POST'])
+@flask_login.login_required
+def delete_photo(pid):
+	photo_owner = get_uid_from_pid(pid)
+	message = "You are not authorized to do that"
+	if (flask_login.current_user.is_authenticated):
+		logged_in_user_id = getUserIdFromEmail(flask_login.current_user.id)
+		logging.debug("User {0} is trying to delete photo {1}".format(logged_in_user_id, pid))
+		if logged_in_user_id == photo_owner:
+			query = "DELETE FROM Photo where photo_id = {0};".format(pid)
+			execute_query(query)
+			message = "Photo deleted."
+	return render_template('message.html', message=message) 
 
 #myself cant comment on his photo
-@app.route("/photo/<pid>/comment", methods=['GET', 'POST'])
+@app.route("/photo/<pid>/comment", methods=['POST'])
 def comment(pid):
 	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
 	commenter = "NULL"
@@ -469,7 +504,7 @@ def insert_tags(tag_str, pid):
 			execute_query(query)
 
 @app.route('/photo/<pid>/tag', methods=['POST'])
-def handle_insert_tags(uid, aid, pid):
+def handle_insert_tags(pid):
 	if request.method == 'POST':
 		tags = request.form['USER_TAGS']
 		insert_tags(tags, pid)
