@@ -82,6 +82,4 @@ CREATE TABLE Photo_Tag (
   FOREIGN KEY (photo_id) REFERENCES Photo(photo_id) ON DELETE CASCADE
 );
 
-
 INSERT INTO User (email, password) VALUES ('photoshare@bu.edu', 'password');
-INSERT INTO User (email, password) VALUES ('ash@bu.edu', 'password');

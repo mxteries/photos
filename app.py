@@ -30,6 +30,7 @@ app.secret_key = 'potatoes'  # Change this!
 # directory that will store all user uploaded photos
 UPLOAD_FOLDER = '/home/david/uni/cs460/photoshare/static'
 pro_pic_folder_name = "profile_picture"
+default_pro_pic = '/static/photoshare@bu.edu/default.jpg'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 #These will need to be changed according to your creditionals
@@ -138,7 +139,8 @@ def register_user():
 		return flask.redirect(flask.url_for('register'))
 	test = isEmailUnique(email)
 	if test:
-		print(cursor.execute("INSERT INTO User (email, password) VALUES ('{0}', '{1}')".format(email, password)))
+		# assign a default propic
+		print(cursor.execute("INSERT INTO User (email, password, propic) VALUES ('{0}', '{1}', '{2}')".format(email, password, default_pro_pic)))
 		conn.commit()
 		usr_path = os.path.join(app.config['UPLOAD_FOLDER'], email)
 		pro_pic_dir = os.path.join(usr_path, pro_pic_folder_name)
@@ -206,6 +208,15 @@ def isEmailUnique(email):
 	else:
 		return True
 
+def get_user_data(uid):
+	query = "SELECT bio, hometown, fname, lname, gender FROM User WHERE user_id = {0};".format(uid)
+	tupled_data = extractData(query)
+	return tupled_data[0]
+
+def get_profile_picture(uid):
+	query = "SELECT propic FROM User WHERE user_id = {0};".format(uid)
+	tupled_pic = extractData(query)
+	return tupled_pic[0][0]
 
 def getAlbumsFromUid(uid):
 	query = "SELECT album_id, name FROM User_Album WHERE user_id = {0};".format(uid)
@@ -277,8 +288,32 @@ def profile(uid):
 		logged_in_user = flask_login.current_user.id
 		if (logged_in_user == email):
 			myself = True
+	user_data = get_user_data(uid)
+	propic = get_profile_picture(uid)
+	return render_template('profile.html', name=email, propic=propic, myself=myself, data=user_data, uid=uid)
 
-	return render_template('profile.html', name=email, myself=myself, uid=uid)
+@app.route('/<uid>/profilepicture', methods=['POST'])
+@flask_login.login_required
+def upload_profile_pic(uid):
+	logging.debug("Adding propic for {0}".format(uid))
+	logging.debug("User is allowed to add propic")
+
+	photofile = request.files['photo']
+	if photofile and allowed_file(photofile.filename):
+		# "profile_picture" directory is made for each user during registration
+		filename = secure_filename(photofile.filename)
+		photo_filepath = os.path.join(getEmailFromUserID(uid), pro_pic_folder_name, filename)
+		fullpath = os.path.join(app.config['UPLOAD_FOLDER'], photo_filepath)
+		photofile.save(fullpath)
+		logging.debug("Uploaded {0} to {1}".format(filename, fullpath))
+
+		mysql_saved_profile_picture = os.path.join('/static', photo_filepath)
+		try:
+			query = "UPDATE User SET propic = '{0}' WHERE user_id = {1};".format(mysql_saved_profile_picture, uid)
+			execute_query(query)
+		except Exception as e:
+			return render_template("message.html", error=e)
+	return redirect(url_for('profile', uid=uid))
 
 @app.route('/friend', methods=['GET', 'POST'])
 @flask_login.login_required
