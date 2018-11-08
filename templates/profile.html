@@ -11,6 +11,13 @@ do that when you implement profiles by uid-->
 
 {% if myself %}
 <h1>Hi {{ name }}!</h1>
+
+<form method="post" enctype="multipart/form-data" action="{{ url_for('upload_file', uid=uid, aid=aid) }}">
+  <label for="photo">Select photo:</label>
+  <input type="file" name="photo" required='true' /><br />
+  <input type="submit" value="Upload Profile picture" />
+</form>
+
 <ul>
     <li><a href="{{ url_for('find_users') }}">Friend/Follow someone!</a> </li> 
     <li><a href="{{ url_for('album', uid=uid) }}">Browse my photos</a> </li> 

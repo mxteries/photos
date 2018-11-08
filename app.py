@@ -29,6 +29,7 @@ app.secret_key = 'potatoes'  # Change this!
 
 # directory that will store all user uploaded photos
 UPLOAD_FOLDER = '/home/david/uni/cs460/photoshare/static'
+pro_pic_folder_name = "profile_picture"
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 #These will need to be changed according to your creditionals
@@ -133,14 +134,16 @@ def register_user():
 		email=request.form.get('email')
 		password=request.form.get('password')
 	except:
-		print("couldn't find all tokens") #this prints to shell, end users will not see this (all print statements go to shell)
+		logging.warning("couldn't find all tokens")
 		return flask.redirect(flask.url_for('register'))
 	test = isEmailUnique(email)
 	if test:
 		print(cursor.execute("INSERT INTO User (email, password) VALUES ('{0}', '{1}')".format(email, password)))
 		conn.commit()
 		usr_path = os.path.join(app.config['UPLOAD_FOLDER'], email)
+		pro_pic_dir = os.path.join(usr_path, pro_pic_folder_name)
 		os.mkdir(usr_path)
+		os.mkdir(pro_pic_dir)
 		#log user in
 		user = User()
 		user.id = email
@@ -245,6 +248,16 @@ def get_photo_comments(pid):
 	# replace mysqls NULL with anonymous
 	tupled_comments = [("Anonymous" if email is None else email, text, date) for (email, text, date) in tupled_comments]
 	return tupled_comments # ((bob, hi, 2018-01-12), (ted, bye, 2018-5-4), ...)
+
+def get_number_of_likes(pid):
+	query = "SELECT count(user_id) FROM Photo_Like WHERE photo_id = {0};".format(pid)
+	tupled_num = extractData(query)
+	return tupled_num[0][0]
+
+def get_users_who_liked(pid):
+	query = "SELECT user_id, email FROM Photo_Like NATURAL JOIN User WHERE photo_id = {0};".format(pid)
+	tuple_of_users = extractData(query) # ((1, ash@bu.edu), (2, test@bu.edu), ...)
+	return tuple_of_users
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -444,9 +457,10 @@ def view_photo(pid):
 	photo, caption = get_a_photo(pid)
 	tags = get_photo_tags(pid)
 	comments = get_photo_comments(pid)
+	num_likes = get_number_of_likes(pid)
 	logging.debug("Viewing {0}'s photo: {1} as user {2} with tags {3} and comments {4}".format(photo_owner, user, photo, tags, comments))
 	
-	return render_template('a_photo.html', myself=myself, user=user, owner=photo_owner, photo=photo, pid=pid, caption=caption, comments=comments, tags=tags)
+	return render_template('a_photo.html', myself=myself, user=user, owner=photo_owner, photo=photo, pid=pid, caption=caption, likes=num_likes, comments=comments, tags=tags)
 
 # todo, if pid doesn't exist, handle that exception
 @app.route('/photo/<pid>/delete', methods=['POST'])
@@ -462,6 +476,38 @@ def delete_photo(pid):
 			execute_query(query)
 			message = "Photo deleted."
 	return render_template('message.html', message=message) 
+
+# user can like his own photo
+# any user may only like a photo once! 
+@app.route("/photo/<pid>/likes", methods=['GET','POST'])
+@flask_login.login_required
+def like_photo(pid):
+	uid = getUserIdFromEmail(flask_login.current_user.id)
+	if request.method == 'POST':
+		action = request.form.get('ACTION')
+		if action == "LIKE":
+			try:
+				query = "INSERT INTO Photo_Like VALUES ({0}, {1});".format(uid, pid)
+				execute_query(query)
+				logging.debug("Added a like for photo {0}".format(pid))
+			except Exception as e:
+				logging.warning(e)
+				return render_template("message.html", query=query, error=e)
+		elif action == "UNLIKE":
+			try:
+				query = "DELETE FROM Photo_Like WHERE user_id = {0} AND photo_id = {1};".format(uid, pid)
+				execute_query(query)
+				logging.debug("Removed a like for photo {0}".format(pid))
+			except Exception as e:
+				logging.warning(e)
+				return render_template("message.html", query=query, error=e)
+		else:
+			return render_template('message.html', message="UNDEFINED ACTION {0}".format(action)) 
+		return redirect(url_for('view_photo', pid=pid))
+	else:
+		user_likes = get_users_who_liked(pid)
+		logging.debug("Here are the users who liked {0}: {1}".format(pid, user_likes))
+		return render_template('like.html', likes=user_likes, pid=pid) 
 
 #myself cant comment on his photo
 @app.route("/photo/<pid>/comment", methods=['POST'])
@@ -568,7 +614,6 @@ def display_searched_tags():
 @flask_login.login_required
 def delete_tag(pid, word):
 	photo_owner = get_uid_from_pid(pid)
-	message = "You are not authorized to do that"
 	if (flask_login.current_user.is_authenticated):
 		logged_in_user_id = getUserIdFromEmail(flask_login.current_user.id)
 		logging.debug("User {0} is trying to delete photo {1}'s tag {2}".format(logged_in_user_id, pid, word))

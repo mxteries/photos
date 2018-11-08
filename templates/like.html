@@ -1,0 +1,33 @@
+<html>
+  <head>
+    <title>Who liked this photo</title>
+  </head>
+
+  <!-- 
+      likes: a list of (uid, email) tuples
+      pid: for redirection and for first like
+  -->
+  <body>
+    <h4>Here are the users who liked this photo:</h4>
+    {% if likes %}
+    <ul> <!-- creates an unordered list -->
+      {% for (uid, email) in likes %}
+        <li>
+          <a href="{{ url_for('profile', uid=uid) }}">[{{email}}]</a>
+        </li>
+      {% endfor %} <!-- have to define the end for ifs and fors! -->
+    </ul>
+    {% else %}
+        Nobody! Be the first one:
+        <form action="{{ url_for('like_photo', pid=pid) }}" method="POST">
+            <input type="hidden" name="ACTION" value="LIKE">
+            <input type="submit" value="Like" />
+        </form>
+    {% endif %}
+   
+    
+  </body>
+  
+</html>
+    
+    

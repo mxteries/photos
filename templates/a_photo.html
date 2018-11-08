@@ -9,6 +9,8 @@
         pid: to insert tags
         caption: yeah
         tags: list of tags
+        likes: just a number
+        already_liked: turn like button to unlike
         comments: all comments sorted by date and who said them
     -->
     {% if myself %}
@@ -33,6 +35,19 @@
         <br>
         {{caption}}
         <br><br>
+        <a href="{{ url_for('like_photo', pid=pid) }}">Likes: {{likes}}</a>
+        {% if already_liked %}
+            <form action="{{ url_for('like_photo', pid=pid) }}" method="POST">
+                <input type="hidden" name="ACTION" value="UNLIKE">
+                <input type="submit" value="Unlike" />
+            </form>
+        {% else %}
+            <form action="{{ url_for('like_photo', pid=pid) }}" method="POST">
+                <input type="hidden" name="ACTION" value="LIKE">
+                <input type="submit" value="Like" />
+            </form>
+        {% endif %}
+        <br>
         Tags:
         {% if tags %}
             <ul>

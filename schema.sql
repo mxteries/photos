@@ -7,7 +7,7 @@ CREATE TABLE User (
   password varchar(255),
   hometown varchar(20),
   bio varchar(280),
-  propic longblob,
+  propic varchar(255),
   fname varchar(20),
   lname varchar(20),
   gender varchar(10),
@@ -37,7 +37,6 @@ CREATE TABLE Photo (
   photo_id int4 AUTO_INCREMENT,
   album_id int4 NOT NULL,
   caption VARCHAR(255),
-  likes int,
   photo_path varchar(255) UNIQUE NOT NULL,
   FOREIGN KEY (album_id) REFERENCES User_Album(album_id) ON DELETE CASCADE,
   PRIMARY KEY (photo_id)
@@ -59,8 +58,14 @@ CREATE TABLE Photo_Comment (
   PRIMARY KEY (comment_id)
 );
 
-CREATE TABLE User_Comment(
-  
+/* to track which users liked a given photo
+*/
+CREATE TABLE Photo_Like(
+  user_id int4,
+  photo_id int4,
+  CONSTRAINT Pk_Photo_Like PRIMARY KEY (user_id, photo_id),
+  FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (photo_id) REFERENCES Photo(photo_id) ON DELETE CASCADE
 );
 
 CREATE TABLE Tag (
