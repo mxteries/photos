@@ -254,6 +254,11 @@ def get_uid_from_aid(aid):
 	uid = tupled_uid[0][0]
 	return uid
 
+# get all tags in order of popularity
+def get_popular_tags():
+	tag_count = extractData("SELECT word, COUNT(photo_id) FROM Photo_Tag GROUP BY word ORDER BY COUNT(photo_id) DESC;")
+	return tag_count # ((word1, 12), (word2, 3), ..)
+
 def get_photo_comments(pid):
 	tupled_comments = extractData("SELECT email, text, date FROM Photo_Comment where photo_id = {0}".format(pid))
 	# replace mysqls NULL with anonymous
@@ -269,6 +274,7 @@ def get_users_who_liked(pid):
 	query = "SELECT user_id, email FROM Photo_Like NATURAL JOIN User WHERE photo_id = {0};".format(pid)
 	tuple_of_users = extractData(query) # ((1, ash@bu.edu), (2, test@bu.edu), ...)
 	return tuple_of_users
+
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -603,7 +609,7 @@ def tagged_photos(tag):
 # specified in the url query ie request.args
 # if request.args has a toggle to show only "my" photos
 # we display only the photos belonging to the logged in user
-@app.route("/tag", methods=['GET'])
+@app.route("/tag/search", methods=['GET'])
 def display_searched_tags():
 	# user searched for photos that have all of (x) tags
 	# oh my goodness this query is so godlike, 
@@ -643,6 +649,13 @@ def display_searched_tags():
 
 	photos = extractData(query)
 	return render_template("tag.html", tag=request.args['SEARCH_TAG'], photos=photos, show_my_photos=my_photo_toggle)
+
+# view a "virtual album" of all photos tagged with <tag>
+@app.route("/tag/popular")
+def view_popular_tags():
+	tag_count = get_popular_tags()
+	logging.debug(tag_count)
+	return render_template("tag.html", popular_tags=tag_count)
 
 # given a photo, deleles a tag from the photo
 @app.route('/photo/<pid>/tag/delete/<word>', methods=['POST'])

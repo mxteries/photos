@@ -9,44 +9,47 @@
             tag - the name of the tag
             show_my_photos - switches between the user's photos and all photos
             photos - photos to display
-            tags - linked tags to list
+            popular_tags - linked tags to list
         -->
         <form action="{{ url_for('display_searched_tags') }}" method="GET"> <!-- action is where to send information -->
             <p> Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /> </p>
             <input type="submit" value="Search" /> <!-- Execute the action -->
         </form>
 
+        {% if popular_tags %}
+        <ul> 
+            {% for (word, count) in popular_tags %}
+                <li><a href="{{ url_for('tagged_photos', tag=word) }}">{{word}}</a>: {{count}} photos</li>
+            {% endfor %}
+        </ul>
+        {% elif photos %}
         <h3>Photos with the tag "{{tag}}":</h3>
-        {% if photos %}
             {% for (path, pid) in photos %}
                 <a href="{{ url_for('view_photo', pid=pid) }}">
                     <img src="{{ path }}" alt="User Image" >
                 </a>
                 <br><br><br>
             {% endfor %}
+            {% if show_my_photos %}
+                <form action="{{ url_for('display_searched_tags') }}" method="GET">
+                    <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
+                    <input type="hidden" name="TOGGLE" value="ALL PHOTOS">
+                    <input type="submit" value="Show all photos" />
+                </form>
+            {% else %}
+                <form action="{{ url_for('display_searched_tags') }}" method="GET">
+                    <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
+                    <input type="hidden" name="TOGGLE" value="MY PHOTOS">
+                    <input type="submit" value="Show my photos" />
+                </form>
+            {% endif %}
         {% else %}
         <h4>Nothing was found!</h4>
-        {% endif %}
-            
-        
-        
-        {% if show_my_photos %}
-            <form action="{{ url_for('display_searched_tags') }}" method="GET">
-                <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
-                <input type="hidden" name="TOGGLE" value="ALL PHOTOS">
-                <input type="submit" value="Show all photos" />
-            </form>
-        {% else %}
-            <form action="{{ url_for('display_searched_tags') }}" method="GET">
-                <input type="hidden" name="SEARCH_TAG" value="{{tag}}">
-                <input type="hidden" name="TOGGLE" value="MY PHOTOS">
-                <input type="submit" value="Show my photos" />
-            </form>
         {% endif %}
         <p>
             <a href="{{ url_for('home') }}">Home</a>
             <br>
-            <a href="{{ url_for('home') }}">View a list of the most popular tags</a>
+            <a href="{{ url_for('view_popular_tags') }}">View a list of the most popular tags</a>
         </p>
     {% endif %}
 </body>
