@@ -254,6 +254,12 @@ def get_uid_from_aid(aid):
 	uid = tupled_uid[0][0]
 	return uid
 
+# return the pid of all photos belonging to uid
+def get_users_photos(uid):
+	query = "SELECT photo_id FROM Photo NATURAL JOIN User_Album WHERE user_id = {0};".format(uid)
+	tupled_ids = extractData(query)
+	return tupled_ids
+
 # turns a tuple of tuple of ids from this: ((1), (2), (3))
 # to a string like this: "(1, 2, 3)"
 def format_id_string(tupled_ids):
@@ -267,6 +273,21 @@ def format_id_string(tupled_ids):
 		id_group += id
 	id_group += ")"
 	return id_group
+
+# turns string of tags from this: ((tag1), (tag2))
+# to a string like this: '("tag1", "tag2")'
+# very similar to format tag string so hopefully we find a way to combine these 2 funcs into one
+def format_tag_string_from_tup(tag_tup):
+	num_tags = len(tag_tup)
+	tag_group = "("
+	for index, (tag,) in enumerate(tag_tup):
+		if (index < (num_tags - 1)):
+			tag = '"' + tag + '"' + ","
+		else:
+			tag = '"' + tag + '"'
+		tag_group += tag
+	tag_group += ")"
+	return tag_group
 
 # turns string of tags from this: 'tag1 tag2'
 # to a string like this: '("tag1", "tag2")'
@@ -779,6 +800,44 @@ def delete_tag(pid, word):
 			execute_query(query)
 	return redirect(url_for('view_photo', pid=pid))
 
+
+# get the 5 most commonly used tags in the user's photos
+# find all photos who have tags in these 5 tags
+# order by photos that match more tags
+# break ties by less overall # of tags
+@app.route('/<uid>/recommend')
+@flask_login.login_required
+def recommend_photos(uid):
+	message = "Here are some photos we recommend based off your uploads"
+
+	# first, get all photos owned by user uid
+	tupled_ids = get_users_photos(uid) # tuple of tuples: ((pid1), (pid2))
+	user_photos = format_id_string(tupled_ids) # string: "(pid1, pid2)"
+	logging.debug("tup ids is: {0} and the string looks like: {1}".format(tupled_ids, user_photos))
+
+	# get 5 most used tags (no tie breaking)
+	get_my_common_tags = ("SELECT word FROM Photo_Tag " + 
+	"WHERE photo_id IN {0} GROUP BY word " +
+	"ORDER BY COUNT(photo_id) DESC LIMIT 5;")
+	get_my_common_tags = get_my_common_tags.format(user_photos)
+	tupled_tags = extractData(get_my_common_tags)
+	my_common_tags = format_tag_string_from_tup(tupled_tags)
+
+	logging.debug("Tupled tags is: {0} and the string looks like: {1}".format(get_my_common_tags, my_common_tags))
+
+	# finally, get all photos that match my "my_common_tags"
+	# order by how many tags they matched
+	# tie break by giving each photo a score (matched*(1+(1/total_tags)))
+	recommend_query = ("SELECT photo_path, caption, photo_id, matched, total_tags FROM " +
+	"(SELECT photo_id, photo_path, caption, COUNT(word) as total_tags FROM " +
+	"Photo_Tag NATURAL JOIN Photo GROUP BY photo_id) num_tags " +
+	"NATURAL JOIN (SELECT photo_id, COUNT(photo_id) AS matched FROM " +
+	"Photo_Tag WHERE word IN {0} GROUP BY photo_id) similar_tags " +
+	"ORDER BY matched*(1+(1/total_tags)) DESC;")
+	recommend_query = recommend_query.format(my_common_tags)
+	recommended_photos = extractData(recommend_query)
+	logging.debug("Here are the user's recommended photos! {0}".format(recommended_photos))
+	return render_template('recommended_photos.html', message=message, recommended_photos=recommended_photos)
 
 #default page  
 @app.route("/", methods=['GET'])

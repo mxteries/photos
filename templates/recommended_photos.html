@@ -1,0 +1,32 @@
+<!doctype html>
+<title>Recommended Photos</title>
+<body>
+
+    {% if message %}
+    <h3>{{message}}</h3>
+    {% endif %}
+
+    {% if recommended_photos %}
+    <p>
+        {% for (path, caption, pid, num_matched, num_tags) in recommended_photos %}
+            This photo matched {{num_matched}} out of 5 of your most used tags. 
+            <br>
+            This Photo has {{num_tags}} tags in total
+            <br>
+            <a href="{{ url_for('view_photo', pid=pid) }}">
+                <img src="{{ path }}" alt="User Image" >
+            </a>
+            <br>
+            {{caption}}
+            <br><br>
+        {% endfor %}
+    </p>
+    {% else %}
+    <h4>No photos were found!</h4>
+    {% endif %}
+
+    <p>
+        <a href="{{ url_for('home') }}">Go home</a>
+    </p>
+
+</body>

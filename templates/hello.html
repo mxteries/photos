@@ -1,5 +1,3 @@
-<!-- author ben lawson (balawson@bu.edu) -->
-<!-- rewritten by david shen (dshen1@bu.edu) -->
 <!doctype html>
 <title>Photoshare</title>
 
@@ -21,18 +19,20 @@
   </ul>
 
   <p>
-      insert you may also like here <br>
-      Heres when the default options start:
+    <form action="{{ url_for('recommend_photos', uid=uid) }}" method="GET">
+      Want some recommendations on photos? You may also like these
+      <input type="submit" value="Recommend Me!" />
+    </form>
   </p>
 {% endif %}
 
 <form action="{{ url_for('display_searched_tags') }}" method="GET">
-    Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" />
+    Search for photos by tags separated by spaces <input type="text" name="SEARCH_TAG" /><br>
     <input type="submit" value="Search" />
 </form>
 <br><br>
 <form action="{{ url_for('recommend_tags') }}" method="GET">
-  Tag recommender <input type="text" name="SAMPLE_TAGS" />
+  Tag recommender <input type="text" name="SAMPLE_TAGS" /><br>
   <input type="submit" value="Recommend!" />
 </form>
 
