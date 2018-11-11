@@ -11,7 +11,7 @@ CREATE TABLE User (
   fname varchar(20),
   lname varchar(20),
   gender varchar(10),
-  contribution int,
+  contribution int NOT NULL DEFAULT 0,
   PRIMARY KEY (user_id)
 );
 

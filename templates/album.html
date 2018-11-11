@@ -27,8 +27,9 @@
                     <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">{{name}}</a>
                     {% if myself %}
                     <form action="{{ url_for('delete_album', aid=aid) }}" method="POST"> <!-- send POST request thru a button by omitting text field-->
-                            <input type="submit" value="Delete Album" />
+                        <input type="submit" value="Delete Album" />
                     </form>
+                    <br>
                     {% endif %}
                 </li>
             {% endfor %}

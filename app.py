@@ -275,6 +275,28 @@ def get_users_who_liked(pid):
 	tuple_of_users = extractData(query) # ((1, ash@bu.edu), (2, test@bu.edu), ...)
 	return tuple_of_users
 
+#returns the entry from table Photo_Like with key (uid, pid)
+# used to check if user uid liked photo pid
+def liked_photo(uid, pid):
+	tupled_like = extractData("SELECT user_id FROM Photo_Like WHERE user_id={0} AND photo_id={1};".format(uid, pid))
+	return tupled_like
+
+# consider adding a "contributions" table that doubles up as the user's history
+# this also allows for cascade delete
+def increment_contribution(uid):
+	query = "UPDATE User SET contribution = contribution + 1 WHERE user_id = {0};".format(uid)
+	execute_query(query)
+	return
+
+def decrement_contribution(uid):
+	query = "UPDATE User SET contribution = contribution - 1 WHERE user_id = {0};".format(uid)
+	execute_query(query)
+	return
+
+
+def get_popular_users():
+	user_count = extractData("SELECT user_id, email, contribution FROM User ORDER BY contribution DESC LIMIT 10;")
+	return user_count
 
 #begin photo uploading code
 # photos uploaded using base64 encoding so they can be directly embeded in HTML 
@@ -359,6 +381,14 @@ def find_users():
 			
 
 		return render_template("friend.html", name=email, note=message)
+
+
+# view a "virtual album" of all photos tagged with <tag>
+@app.route("/user/popular")
+def view_popular_users():
+	user_count = get_popular_users()
+	logging.debug(user_count)
+	return render_template("popular_users.html", popular_users=user_count)
 
 # this route should display links to all albums by a user
 # user should not be able to post if theyre not logged in (can't see the form)
@@ -447,6 +477,13 @@ def list_photos(uid, aid):
 @app.route('/<uid>/album/<aid>/upload', methods=['GET', 'POST'])
 @flask_login.login_required
 def upload_file(uid, aid):
+	# if a user tries to navigate to the upload url for an album they dont own
+	# deny them
+	album_owner = int(uid)
+	if (flask_login.current_user.is_authenticated):
+			logged_in_user_id = getUserIdFromEmail(flask_login.current_user.id)
+			if logged_in_user_id != album_owner: # if a random 	user tries to post to an album, deny them
+				return render_template("message.html", message="You are not authorized to do that")
 	if request.method == 'POST':
 		photofile = request.files['photo']
 		caption = request.form.get('caption')
@@ -465,15 +502,15 @@ def upload_file(uid, aid):
 				execute_query(query)
 				insert_tags(tags, get_pid_from_path(mysql_photo_path))
 				message = "Success!! Photo Uploaded!"
+				increment_contribution(uid)
 			except Exception as e:
 				logging.warning(e)
 				if ("1062" in str(e)):
 					message = "You've already uploaded a file with that filename!"
 				else:
 					return render_template("message.html", query=query, error=e)
-
 		else:
-			message = "Upload failed, did you submit anything?"
+			message = "Upload failed, did you submit a valid photo?"
 		return render_template('photo.html', user=getEmailFromUserID(uid), uid=uid, aid=aid, message=message, photos=getAlbumPhotos(aid), myself=True)
 	#The method is GET so we return a HTML form to choose an album to upload the photo.
 	else:
@@ -487,13 +524,17 @@ def view_photo(pid):
 	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
 	user = "Anonymous"
 	myself = False
+	already_liked = False
 
 	# check if this is the logged in user's photo
 	if (flask_login.current_user.is_authenticated):
 		logged_in_user = flask_login.current_user.id
-		user = logged_in_user # if this is my photo, grant access controls. else, just tell them who they are
+		# if this is my photo, grant access controls. else, just display who they are
 		if (logged_in_user == photo_owner):
 			myself = True
+		# if user has liked photo (ie. return value is not empty)
+		if (liked_photo(getUserIdFromEmail(logged_in_user), pid)):
+			already_liked = True
 
 	photo, caption = get_a_photo(pid)
 	tags = get_photo_tags(pid)
@@ -501,7 +542,7 @@ def view_photo(pid):
 	num_likes = get_number_of_likes(pid)
 	logging.debug("Viewing {0}'s photo: {1} as user {2} with tags {3} and comments {4}".format(photo_owner, user, photo, tags, comments))
 	
-	return render_template('a_photo.html', myself=myself, user=user, owner=photo_owner, photo=photo, pid=pid, caption=caption, likes=num_likes, comments=comments, tags=tags)
+	return render_template('a_photo.html', myself=myself, user=logged_in_user, owner=photo_owner, photo=photo, pid=pid, caption=caption, already_liked=already_liked, likes=num_likes, comments=comments, tags=tags)
 
 # todo, if pid doesn't exist, handle that exception
 @app.route('/photo/<pid>/delete', methods=['POST'])
@@ -553,32 +594,37 @@ def like_photo(pid):
 #myself cant comment on his photo
 @app.route("/photo/<pid>/comment", methods=['POST'])
 def comment(pid):
+	# set commenter to NULL in mysql if anonymous. 
+	# Otherwise set commenter to email of logged in user
 	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
 	commenter = "NULL"
+	commenter_uid = None
 	myself = False
 
 	# check if this is my photo, and set who's commenting
 	if (flask_login.current_user.is_authenticated):
 		logged_in_user = flask_login.current_user.id
+		commenter_uid = getUserIdFromEmail(logged_in_user)
 		commenter = '"' + logged_in_user + '"'
 		if (logged_in_user == photo_owner):
 			myself = True
 
-	if request.method == 'POST':
-		some_comment = request.form['USER_COMMENT']
-		# if this is my comment
-		logging.debug("User {0} tries to post on photo belonging to {1}".format(commenter, photo_owner))
-		if myself:
-			return render_template('message.html', message="You can't comment on your own photo. Blame the requirements")
-		else:
-			try:
-				query = 'INSERT INTO Photo_Comment(photo_id, text, date, email) values ({0}, "{1}", "{2}", {3});'
-				query = query.format(pid, some_comment, get_date(), commenter)
-				execute_query(query)
-			except Exception as e:
-				logging.warning(str(e))
-				return render_template("message.html", query=query, error=e)
-
+	some_comment = request.form['USER_COMMENT']
+	# if this is my comment
+	logging.debug("User {0} tries to post on photo belonging to {1}".format(commenter, photo_owner))
+	if myself:
+		return render_template('message.html', message="You can't comment on your own photo. Blame the requirements")
+	else:
+		try:
+			query = 'INSERT INTO Photo_Comment(photo_id, text, date, email) values ({0}, "{1}", "{2}", {3});'
+			query = query.format(pid, some_comment, get_date(), commenter)
+			execute_query(query)
+			# update user contribution score if no errors
+			if (commenter_uid is not None):
+				increment_contribution(commenter_uid)
+		except Exception as e:
+			logging.warning(str(e))
+			return render_template("message.html", query=query, error=e)
 		return redirect(url_for('view_photo', pid=pid))
 
 

@@ -1,0 +1,11 @@
+<!doctype html>
+<title>Popular Users</title>
+<body>
+{% if popular_users %}
+    <ul> 
+        {% for (uid, email, count) in popular_users %}
+            <li><a href="{{ url_for('profile', uid=uid) }}">{{email}}</a>: {{count}} Contributions</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+</body>
