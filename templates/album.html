@@ -22,9 +22,9 @@
 
         {% if albums %}
         <ul>
-            {% for (aid, name) in albums %}
+            {% for (aid, name, date) in albums %}
                 <li>
-                    <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">{{name}}</a>
+                    <a href="{{ url_for('list_photos', uid=uid, aid=aid) }}">{{name}}</a> {{date}}
                     {% if myself %}
                     <form action="{{ url_for('delete_album', aid=aid) }}" method="POST"> <!-- send POST request thru a button by omitting text field-->
                         <input type="submit" value="Delete Album" />

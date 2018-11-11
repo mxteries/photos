@@ -219,9 +219,9 @@ def get_profile_picture(uid):
 	return tupled_pic[0][0]
 
 def getAlbumsFromUid(uid):
-	query = "SELECT album_id, name FROM User_Album WHERE user_id = {0};".format(uid)
+	query = "SELECT album_id, name, date FROM User_Album WHERE user_id = {0};".format(uid)
 	albums = extractData(query)
-	return albums # tuple of tuple ((aid1, name), (aid2, name)) belonging to uid
+	return albums # tuple of tuple ((aid1, name, date), (aid2, name, date)) belonging to uid
 
 # get all photos from an album
 # serve up images from *the* static directory
@@ -262,48 +262,38 @@ def get_users_photos(uid):
 
 # turns a tuple of tuple of ids from this: ((1), (2), (3))
 # to a string like this: "(1, 2, 3)"
+# if empty, return: "('')"
 def format_id_string(tupled_ids):
-	num_ids = len(tupled_ids)
-	id_group = "("
-	for index, (id,) in enumerate(tupled_ids):
-		id = str(id)
-		if (index < (num_ids - 1)):
-			id = id + ","
-		# else if last element, dont append a comma
-		id_group += id
-	id_group += ")"
+	id_group = "('')"
+	if tupled_ids: # if the input list isnt empty
+		num_ids = len(tupled_ids)
+		id_group = "("
+		for index, (id,) in enumerate(tupled_ids):
+			id = str(id)
+			if (index < (num_ids - 1)):
+				id = id + ","
+			# else if last element, dont append a comma
+			id_group += id
+		id_group += ")"
 	return id_group
 
-# turns string of tags from this: ((tag1), (tag2))
+# turns list tags from this: ["tag1", "tag2"] or this ("tag1", "tag2") 
 # to a string like this: '("tag1", "tag2")'
-# very similar to format tag string so hopefully we find a way to combine these 2 funcs into one
-def format_tag_string_from_tup(tag_tup):
-	num_tags = len(tag_tup)
-	tag_group = "("
-	for index, (tag,) in enumerate(tag_tup):
-		if (index < (num_tags - 1)):
-			tag = '"' + tag + '"' + ","
-		else:
-			tag = '"' + tag + '"'
-		tag_group += tag
-	tag_group += ")"
-	return tag_group
-
-# turns string of tags from this: 'tag1 tag2'
-# to a string like this: '("tag1", "tag2")'
+# if empty, return: "('')"
 # returns the formatted string, and the number of tags
-def format_tag_string(tag_string):
-	tags = tag_string.split()
-	num_tags = len(tags)
-	tag_group = "("
-	for index, tag in enumerate(tags):
-		if (index < (num_tags - 1)):
-			tag = '"' + tag + '"' + ","
-		else:
-			tag = '"' + tag + '"'
-		tag_group += tag
-	tag_group += ")"
-	return (tag_group, num_tags)
+def format_tag_list(tag_list):
+	tag_group = "('')"
+	if tag_list: # if the input list isnt empty
+		num_tags = len(tag_list)
+		tag_group = "("
+		for index, tag in enumerate(tag_list):
+			if (index < (num_tags - 1)):
+				tag = '"' + tag + '"' + ","
+			else:
+				tag = '"' + tag + '"'
+			tag_group += tag
+		tag_group += ")"
+	return tag_group
 
 # get all photos that match these tags
 # source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
@@ -489,7 +479,7 @@ def album(uid):
 		if (len(album_name) > 100):
 			message = "Name is too long, limit to 100 characters"
 		else:
-			query = "INSERT INTO User_Album(user_id, name) VALUES({0}, \"{1}\");".format(uid, album_name)
+			query = "INSERT INTO User_Album(user_id, name, date) VALUES({0}, '{1}', '{2}');".format(uid, album_name, get_date())
 			try: #tries the query
 				execute_query(query)
 				message = "Success! Album {0} was created!".format(album_name)
@@ -702,7 +692,6 @@ def insert_tags(tag_str, pid):
 	tags = tag_str.split()
 	if tags: # if tag_str isnt "" or " "
 		for tag in tags:
-			logging.debug("Associating tag {0} with photo pid {1}".format(tag, pid))
 			query = "INSERT INTO Photo_Tag VALUES('{0}', {1});".format(tag, pid)
 			execute_query(query)
 
@@ -710,7 +699,16 @@ def insert_tags(tag_str, pid):
 def handle_insert_tags(pid):
 	if request.method == 'POST':
 		tags = request.form['USER_TAGS']
-		insert_tags(tags, pid)
+		try:
+			insert_tags(tags, pid)
+		except Exception as e:
+			logging.warning(str(e))
+			if ("1062" in str(e)):
+				message = "{0} is already a tag! Go back and try again".format(tags)
+				return render_template("message.html", message=message)
+			else:
+				return render_template("message.html", error=e)
+		
 		return redirect(url_for('view_photo', pid=pid))
 
 # view a "virtual album" of all photos tagged with <tag>
@@ -731,8 +729,9 @@ def display_searched_tags():
 	# oh my goodness this query is so godlike, 
 	# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
 	logging.debug(request.args)
-	tag_string = request.args['SEARCH_TAG']
-	tag_group, num_tags = format_tag_string(tag_string)
+	tag_list = request.args['SEARCH_TAG'].split()
+	num_tags = len(tag_list)
+	tag_group = format_tag_list(tag_list)
 
 	logging.debug("Formatted tag string is now {0} with {1} tags".format(tag_group, num_tags))
 	my_photo_toggle = False
@@ -760,8 +759,9 @@ def display_searched_tags():
 @app.route("/tag/recommend", methods=['GET'])
 def recommend_tags():
 	# first, get all tags that were included in the input
-	sample_tags = request.args['SAMPLE_TAGS']
-	formatted_sample_tags, num_tags = format_tag_string(sample_tags)
+	sample_tags = request.args['SAMPLE_TAGS'].split()
+	num_tags = len(sample_tags)
+	formatted_sample_tags = format_tag_list(sample_tags)
 	
 	# second, get all photos containing the input tags
 	query = ("SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1};")
@@ -821,7 +821,8 @@ def recommend_photos(uid):
 	"ORDER BY COUNT(photo_id) DESC LIMIT 5;")
 	get_my_common_tags = get_my_common_tags.format(user_photos)
 	tupled_tags = extractData(get_my_common_tags)
-	my_common_tags = format_tag_string_from_tup(tupled_tags)
+	tupled_tags = [tup for (tup,) in tupled_tags]
+	my_common_tags = format_tag_list(tupled_tags)
 
 	logging.debug("Tupled tags is: {0} and the string looks like: {1}".format(get_my_common_tags, my_common_tags))
 
@@ -849,13 +850,8 @@ def home():
 		return render_template('hello.html', uid=user_id, user=logged_in_user)
 	else:
 		return render_template('hello.html', user=None)
+
 if __name__ == "__main__":
-	#this is invoked when in the shell  you run 
+	#this is invoked when in the shell you run 
 	#$ python app.py 
 	app.run(port=5000, debug=True)
-'''
-A new page looks like this:
-@app.route('new_page_name')
-def new_page_function():
-	return new_page_html
-'''
