@@ -19,7 +19,14 @@
         {% if popular_tags %}
         <ul> 
             {% for (word, count) in popular_tags %}
-                <li><a href="{{ url_for('tagged_photos', tag=word) }}">{{word}}</a>: {{count}} photos</li>
+                <li><a href="{{ url_for('tagged_photos', tag=word) }}">{{word}}</a>: {{count}} Photo(s) have this tag!</li>
+            {% endfor %}
+        </ul>
+        {% elif recommended_tags %}
+        <h4>Here are some recommendations based on your search</h4>
+        <ul> 
+            {% for (word, count) in recommended_tags %}
+                <li><a href="{{ url_for('tagged_photos', tag=word) }}">{{word}}</a>: {{count}} similar photo(s) also use this tag!</li>
             {% endfor %}
         </ul>
         {% elif photos %}

@@ -254,6 +254,57 @@ def get_uid_from_aid(aid):
 	uid = tupled_uid[0][0]
 	return uid
 
+# turns a tuple of tuple of ids from this: ((1), (2), (3))
+# to a string like this: "(1, 2, 3)"
+def format_id_string(tupled_ids):
+	num_ids = len(tupled_ids)
+	id_group = "("
+	for index, (id,) in enumerate(tupled_ids):
+		id = str(id)
+		if (index < (num_ids - 1)):
+			id = id + ","
+		# else if last element, dont append a comma
+		id_group += id
+	id_group += ")"
+	return id_group
+
+# turns string of tags from this: 'tag1 tag2'
+# to a string like this: '("tag1", "tag2")'
+# returns the formatted string, and the number of tags
+def format_tag_string(tag_string):
+	tags = tag_string.split()
+	num_tags = len(tags)
+	tag_group = "("
+	for index, tag in enumerate(tags):
+		if (index < (num_tags - 1)):
+			tag = '"' + tag + '"' + ","
+		else:
+			tag = '"' + tag + '"'
+		tag_group += tag
+	tag_group += ")"
+	return (tag_group, num_tags)
+
+# get all photos that match these tags
+# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
+# tag_group must be a string that looks like: ("tag1", "tag2", ..., "tagn")
+def get_photos_with_tag(tag_group, num_tags):
+	query = ("SELECT photo_path, photo_id FROM " + 
+		"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " + 
+		"natural join Photo;")
+	query = query.format(tag_group, num_tags)
+	tupled_photos = extractData(query)
+	return tupled_photos
+
+# similar to get_photos_with_tag() above, but only returns photos that belong to user uid
+def get_my_photos_with_tag(tag_group, num_tags, uid):
+	query = ("SELECT photo_path, photo_id FROM " +
+		"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " +
+		"natural join Photo natural join User_Album " +
+		"where user_id = {2};")
+	query = query.format(tag_group, num_tags, uid)
+	tupled_photos = extractData(query)
+	return tupled_photos
+
 # get all tags in order of popularity
 def get_popular_tags():
 	tag_count = extractData("SELECT word, COUNT(photo_id) FROM Photo_Tag GROUP BY word ORDER BY COUNT(photo_id) DESC;")
@@ -292,7 +343,6 @@ def decrement_contribution(uid):
 	query = "UPDATE User SET contribution = contribution - 1 WHERE user_id = {0};".format(uid)
 	execute_query(query)
 	return
-
 
 def get_popular_users():
 	user_count = extractData("SELECT user_id, email, contribution FROM User ORDER BY contribution DESC LIMIT 10;")
@@ -381,7 +431,6 @@ def find_users():
 			
 
 		return render_template("friend.html", name=email, note=message)
-
 
 # view a "virtual album" of all photos tagged with <tag>
 @app.route("/user/popular")
@@ -522,7 +571,7 @@ def upload_file(uid, aid):
 def view_photo(pid):
 
 	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
-	user = "Anonymous"
+	logged_in_user = "Anonymous"
 	myself = False
 	already_liked = False
 
@@ -540,7 +589,7 @@ def view_photo(pid):
 	tags = get_photo_tags(pid)
 	comments = get_photo_comments(pid)
 	num_likes = get_number_of_likes(pid)
-	logging.debug("Viewing {0}'s photo: {1} as user {2} with tags {3} and comments {4}".format(photo_owner, user, photo, tags, comments))
+	logging.debug("Viewing {0}'s photo: {1} as user {2} with tags {3} and comments {4}".format(photo_owner, logged_in_user, photo, tags, comments))
 	
 	return render_template('a_photo.html', myself=myself, user=logged_in_user, owner=photo_owner, photo=photo, pid=pid, caption=caption, already_liked=already_liked, likes=num_likes, comments=comments, tags=tags)
 
@@ -661,40 +710,54 @@ def display_searched_tags():
 	# oh my goodness this query is so godlike, 
 	# source: https://stackoverflow.com/questions/13821345/mysql-select-ids-that-match-all-tags
 	logging.debug(request.args)
-	tags = request.args['SEARCH_TAG'].split()
+	tag_string = request.args['SEARCH_TAG']
+	tag_group, num_tags = format_tag_string(tag_string)
 
-	num_tags = len(tags)
-	tag_group = "("
-	for index, tag in enumerate(tags):
-		if (index < (num_tags - 1)):
-			tag = '"' + tag + '"' + ","
-		else:
-			tag = '"' + tag + '"'
-		tag_group += tag
-	tag_group += ")"
-	logging.debug(tag_group)
-	query = ("SELECT photo_path, photo_id FROM " + 
-		"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " + 
-		"natural join Photo;")
-	query = query.format(tag_group, num_tags)
-	
+	logging.debug("Formatted tag string is now {0} with {1} tags".format(tag_group, num_tags))
 	my_photo_toggle = False
-	# now if we want to only see OUR photos, have to modify query a bit
+	logged_in_user = None
+	photos = None
+
+	# check if the user wants to only see his/her own photos
 	if 'TOGGLE' in request.args:
 		if request.args['TOGGLE'] == "MY PHOTOS":
 			if (flask_login.current_user.is_authenticated):
 				my_photo_toggle = True
 				logged_in_user = getUserIdFromEmail(flask_login.current_user.id)
-				query = ("SELECT photo_path, photo_id FROM " +
-				"(SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1}) tagged " +
-				"natural join Photo natural join User_Album " +
-				"where user_id = {2};")
-				query = query.format(tag_group, num_tags, logged_in_user)
 			else: 
 				return render_template('unauth.html') 
-
-	photos = extractData(query)
+	if (my_photo_toggle):
+		photos = get_my_photos_with_tag(tag_group, num_tags, logged_in_user)
+	else:
+		photos = get_photos_with_tag(tag_group, num_tags)
 	return render_template("tag.html", tag=request.args['SEARCH_TAG'], photos=photos, show_my_photos=my_photo_toggle)
+
+# a user supplies some tags (ie. a sample)
+# we find all photos containing those tags
+# we take each tag that is collectively owned by all the photos above
+# we sort them, exclude the searched tags, and return the list to the user
+@app.route("/tag/recommend", methods=['GET'])
+def recommend_tags():
+	# first, get all tags that were included in the input
+	sample_tags = request.args['SAMPLE_TAGS']
+	formatted_sample_tags, num_tags = format_tag_string(sample_tags)
+	
+	# second, get all photos containing the input tags
+	query = ("SELECT photo_id FROM Photo_Tag WHERE word IN {0} GROUP BY photo_id HAVING COUNT(*) = {1};")
+	query = query.format(formatted_sample_tags, num_tags)
+	tupled_ids = extractData(query)
+	photo_ids_with_tags = format_id_string(tupled_ids)
+
+	# lastly, order the recommended tags by frequency. This is done by
+	# getting all tags used by all photos in the above query
+	# and excluding the tags that were inluded in the search query
+	recommend_query = ("SELECT word, COUNT(photo_id) FROM Photo_Tag " + 
+	"WHERE word NOT IN {0} AND photo_id IN {1} GROUP BY word " +
+	"ORDER BY COUNT(photo_id) DESC;")
+	recommend_query = recommend_query.format(formatted_sample_tags, photo_ids_with_tags)
+	recommended_tags = extractData(recommend_query)
+	return render_template("tag.html", recommended_tags=recommended_tags)
+
 
 # view a "virtual album" of all photos tagged with <tag>
 @app.route("/tag/popular")
