@@ -21,7 +21,7 @@ import os, base64
 import logging
 from datetime import date
 logging.basicConfig(level=logging.DEBUG)
-#logging.disable(logging.INFO)
+logging.disable(logging.DEBUG)
 
 mysql = MySQL()
 app = Flask(__name__)
@@ -88,17 +88,13 @@ def request_loader(request):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
 	if flask.request.method == 'GET':
-		return '''
-			   <form action='login' method='POST'>
-				<input type='text' name='email' id='email' placeholder='email'></input>
-				<input type='password' name='password' id='password' placeholder='password'></input>
-				<input type='submit' name='submit'></input>
-			   </form></br>
-		   <a href='/'>Home</a>
-			   '''
+		already_logged_in = False
+		if (flask_login.current_user.is_authenticated):
+			already_logged_in = True
+		return render_template('login.html', already_logged_in=already_logged_in)
 	else:
 		#The request method is POST (page is recieving data)
-		email = flask.request.form['email']
+		email = flask.request.form['email'].lower()
 		#check if email is registered
 		if cursor.execute("SELECT user_id, password FROM User WHERE email = '{0}'".format(email)):
 			data = cursor.fetchall()
@@ -112,8 +108,7 @@ def login():
 				return flask.redirect(flask.url_for('profile', uid=user_id)) #profile is a function defined in this file
 
 		#information did not match
-		return "<a href='/login'>Try again</a>\
-				</br><a href='/register'>or make an account</a>"
+		return render_template('login.html', message="Invalid username or password")
 
 @app.route('/logout')
 def logout():
@@ -132,7 +127,8 @@ def register():
 @app.route("/register/", methods=['POST'])
 def register_user():
 	try:
-		email=request.form.get('email')
+		# don't store case sensative emails
+		email=request.form.get('email').lower()
 		password=request.form.get('password')
 	except:
 		logging.warning("couldn't find all tokens")
