@@ -26,9 +26,9 @@ CREATE TABLE Friendship (
 
 CREATE TABLE User_Album (
   album_id int4 AUTO_INCREMENT,
-  user_id int4 NOT NULL,
+  user_id int4 NOT NULL, /* ie. "owner id" */
   name varchar(20) UNIQUE NOT NULL,
-  date char(10),
+  date char(10), /* ie. "date of creation" */
   FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
   PRIMARY KEY (album_id)
 );
@@ -37,7 +37,7 @@ CREATE TABLE Photo (
   photo_id int4 AUTO_INCREMENT,
   album_id int4 NOT NULL,
   caption VARCHAR(255),
-  photo_path varchar(255) UNIQUE NOT NULL,
+  photo_path varchar(255) UNIQUE NOT NULL, /* I use "photo_path" instead of "data" */
   FOREIGN KEY (album_id) REFERENCES User_Album(album_id) ON DELETE CASCADE,
   PRIMARY KEY (photo_id)
 );

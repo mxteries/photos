@@ -140,8 +140,8 @@ def register_user():
 	test = isEmailUnique(email)
 	if test:
 		# assign a default propic
-		query = ("INSERT INTO User (email, password, propic, fname, lname, gender, hometown, birthday, bio) " +
-		"VALUES ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}', '{7}', '{8}')")
+		query = ('INSERT INTO User (email, password, propic, fname, lname, gender, hometown, birthday, bio) ' +
+		'VALUES ("{0}", "{1}", "{2}", "{3}", "{4}", "{5}", "{6}", "{7}", "{8}")')
 		query = query.format(email, password, default_pro_pic, fname, lname, gender, hometown, birthday, bio)
 		logging.warning("Registering user with this query: {0}".format(query))
 		execute_query(query)
