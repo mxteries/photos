@@ -1,14 +1,7 @@
 ######################################
-# author ben lawson <balawson@bu.edu> 
-# Edited by: Craig Einstein <einstein@bu.edu>
+# Initial authors: ben lawson <balawson@bu.edu>, Craig Einstein <einstein@bu.edu>
 # Perfected by: David Shen <dshen1@bu.edu>
 ######################################
-# Some code adapted from 
-# CodeHandBook at http://codehandbook.org/python-web-application-development-using-flask-and-mysql/
-# and MaxCountryMan at https://github.com/maxcountryman/flask-login/
-# and Flask Offical Tutorial at  http://flask.pocoo.org/docs/0.10/patterns/fileuploads/
-# see links for further understanding
-###################################################
 
 import flask
 from flask import Flask, Response, request, render_template, redirect, url_for
@@ -28,6 +21,8 @@ app = Flask(__name__)
 app.secret_key = 'potatoes'  # Change this!
 
 # directory that will store all user uploaded photos
+# if you're running this on your local machine, uh.. yeah good luck
+# figuring out my storage scheme
 UPLOAD_FOLDER = '/home/david/uni/cs460/photoshare/static'
 pro_pic_folder_name = "profile_picture"
 default_pro_pic = '/static/photoshare@bu.edu/default.jpg'
@@ -48,7 +43,7 @@ cursor = conn.cursor()
 
 # template docs http://jinja.pocoo.org/docs/2.10/templates/#variables
 
-# the way users are currently defined is very spaghetti. if there is time to refactor:
+# the way users was defined is very spaghetti. if there is time to refactor:
 # https://flask-login.readthedocs.io/en/latest/#configuring-your-application
 # https://realpython.com/using-flask-login-for-user-management-with-flask/
 
@@ -122,7 +117,10 @@ def unauthorized_handler():
 #you can specify specific methods (GET/POST) in function header instead of inside the functions as seen earlier
 @app.route("/register/", methods=['GET'])
 def register():
-	return render_template('improved_register.html', supress='True')  
+	already_logged_in = False
+	if (flask_login.current_user.is_authenticated):
+		already_logged_in = True
+	return render_template('improved_register.html', supress='True', already_logged_in=already_logged_in)  
 
 @app.route("/register/", methods=['POST'])
 def register_user():
@@ -130,14 +128,23 @@ def register_user():
 		# don't store case sensative emails
 		email=request.form.get('email').lower()
 		password=request.form.get('password')
+		fname = request.form.get('firstname')
+		lname = request.form.get('lastname')
+		hometown = request.form.get('hometown')
+		gender = request.form.get('gender')
+		birthday = request.form.get('birthday')
+		bio = request.form.get('bio')
 	except:
 		logging.warning("couldn't find all tokens")
 		return flask.redirect(flask.url_for('register'))
 	test = isEmailUnique(email)
 	if test:
 		# assign a default propic
-		print(cursor.execute("INSERT INTO User (email, password, propic) VALUES ('{0}', '{1}', '{2}')".format(email, password, default_pro_pic)))
-		conn.commit()
+		query = ("INSERT INTO User (email, password, propic, fname, lname, gender, hometown, birthday, bio) " +
+		"VALUES ('{0}', '{1}', '{2}', '{3}', '{4}', '{5}', '{6}', '{7}', '{8}')")
+		query = query.format(email, password, default_pro_pic, fname, lname, gender, hometown, birthday, bio)
+		logging.warning("Registering user with this query: {0}".format(query))
+		execute_query(query)
 		usr_path = os.path.join(app.config['UPLOAD_FOLDER'], email)
 		pro_pic_dir = os.path.join(usr_path, pro_pic_folder_name)
 		os.mkdir(usr_path)
@@ -205,7 +212,7 @@ def isEmailUnique(email):
 		return True
 
 def get_user_data(uid):
-	query = "SELECT bio, hometown, fname, lname, gender FROM User WHERE user_id = {0};".format(uid)
+	query = "SELECT fname, lname, gender, bio, hometown, birthday FROM User WHERE user_id = {0};".format(uid)
 	tupled_data = extractData(query)
 	return tupled_data[0]
 
@@ -656,7 +663,6 @@ def comment(pid):
 	# Otherwise set commenter to email of logged in user
 	photo_owner = getEmailFromUserID(get_uid_from_pid(pid))
 	commenter = "NULL"
-	commenter_uid = None
 	myself = False
 
 	# check if this is my photo, and set who's commenting
@@ -682,7 +688,6 @@ def comment(pid):
 			logging.warning(str(e))
 			return render_template("message.html", query=query, error=e)
 		return redirect(url_for('view_photo', pid=pid))
-
 
 def insert_tags(tag_str, pid):
 	tags = tag_str.split()
@@ -825,16 +830,23 @@ def recommend_photos(uid):
 	# finally, get all photos that match my "my_common_tags"
 	# order by how many tags they matched
 	# tie break by giving each photo a score (matched*(1+(1/total_tags)))
+	# now it wont recommend the user's photos!
 	recommend_query = ("SELECT photo_path, caption, photo_id, matched, total_tags FROM " +
-	"(SELECT photo_id, photo_path, caption, COUNT(word) as total_tags FROM " +
-	"Photo_Tag NATURAL JOIN Photo GROUP BY photo_id) num_tags " +
+	"(SELECT user_id, photo_id, photo_path, caption, COUNT(word) as total_tags FROM " +
+	"Photo_Tag NATURAL JOIN Photo NATURAL JOIN User_Album WHERE user_id <> {0} GROUP BY photo_id) num_tags " +
 	"NATURAL JOIN (SELECT photo_id, COUNT(photo_id) AS matched FROM " +
-	"Photo_Tag WHERE word IN {0} GROUP BY photo_id) similar_tags " +
+	"Photo_Tag WHERE word IN {1} GROUP BY photo_id) similar_tags " +
 	"ORDER BY matched*(1+(1/total_tags)) DESC;")
-	recommend_query = recommend_query.format(my_common_tags)
+	recommend_query = recommend_query.format(uid, my_common_tags)
 	recommended_photos = extractData(recommend_query)
 	logging.debug("Here are the user's recommended photos! {0}".format(recommended_photos))
 	return render_template('recommended_photos.html', message=message, recommended_photos=recommended_photos)
+
+	# heres the old query juuust in case (dont forget to change the format): 
+	# SELECT photo_path, caption, photo_id, matched, total_tags FROM 
+	# (SELECT photo_id, photo_path, caption, COUNT(word) as total_tags FROM Photo_Tag NATURAL JOIN Photo 
+	# GROUP BY photo_id) num_tags NATURAL JOIN (SELECT photo_id, COUNT(photo_id) AS matched FROM Photo_Tag
+	#  WHERE word IN ("Pokemon") GROUP BY photo_id) similar_tags ORDER BY matched*(1+(1/total_tags)) DESC;
 
 #default page  
 @app.route("/", methods=['GET'])

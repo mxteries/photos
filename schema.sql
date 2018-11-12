@@ -7,6 +7,7 @@ CREATE TABLE User (
   password varchar(255),
   hometown varchar(20),
   bio varchar(280),
+  birthday char(10),
   propic varchar(255),
   fname varchar(20),
   lname varchar(20),

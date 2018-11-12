@@ -3,7 +3,7 @@
 <body>
     {% if already_logged_in %}
         You're already logged in!<br>
-        <a href="{{ url_for('logout') }}">Home</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
     {% else %}
         {% if message %}
             {{message}} <br>
