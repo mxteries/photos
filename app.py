@@ -340,19 +340,21 @@ def liked_photo(uid, pid):
 	return tupled_like
 
 # consider adding a "contributions" table that doubles up as the user's history
-# this also allows for cascade delete
-def increment_contribution(uid):
-	query = "UPDATE User SET contribution = contribution + 1 WHERE user_id = {0};".format(uid)
-	execute_query(query)
-	return
-
-def decrement_contribution(uid):
-	query = "UPDATE User SET contribution = contribution - 1 WHERE user_id = {0};".format(uid)
-	execute_query(query)
-	return
-
+# this would track the user id, their photo id, and their comment id
+# this also allows for cascade delete for when a photo or comment gets deleted
 def get_popular_users():
-	user_count = extractData("SELECT user_id, email, contribution FROM User ORDER BY contribution DESC LIMIT 10;")
+	# this query gets all users and the number of comments 
+	# they've left (with a left outer join) and it joins that with
+	# the number of photos all users have uploaded
+	# then it orders the users by the sum of those counts
+	query = ("SELECT user_id, email, (num_comments+num_photos) AS contribution FROM " +
+	"(SELECT user_id, email, COUNT(comment_id) AS num_comments FROM User " +
+	"NATURAL LEFT OUTER JOIN Photo_Comment GROUP BY user_id) comments " +
+	"NATURAL JOIN (SELECT user_id, email, COUNT(photo_id) AS num_photos " +
+	"FROM User NATURAL LEFT OUTER JOIN " +
+	"(SELECT user_id, photo_id FROM User_Album NATURAL JOIN Photo) user_photos " +
+	"GROUP BY user_id) photos ORDER BY contribution DESC LIMIT 10;")
+	user_count = extractData(query)
 	return user_count
 
 #begin photo uploading code
@@ -558,7 +560,7 @@ def upload_file(uid, aid):
 				execute_query(query)
 				insert_tags(tags, get_pid_from_path(mysql_photo_path))
 				message = "Success!! Photo Uploaded!"
-				increment_contribution(uid)
+				# here is where you would try to add to the contributions table
 			except Exception as e:
 				logging.warning(e)
 				if ("1062" in str(e)):
@@ -675,9 +677,7 @@ def comment(pid):
 			query = 'INSERT INTO Photo_Comment(photo_id, text, date, email) values ({0}, "{1}", "{2}", {3});'
 			query = query.format(pid, some_comment, get_date(), commenter)
 			execute_query(query)
-			# update user contribution score if no errors
-			if (commenter_uid is not None):
-				increment_contribution(commenter_uid)
+			# if commenter isnt anon, we would also insert to contributions table here as well
 		except Exception as e:
 			logging.warning(str(e))
 			return render_template("message.html", query=query, error=e)
